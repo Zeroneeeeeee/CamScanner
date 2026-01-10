@@ -3,10 +3,11 @@ package gambi.zerone.camscanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,26 +19,37 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun HomeScreen(
 	modifier: Modifier = Modifier,
 	toSmartScan: () -> Unit = {},
-	toList: () -> Unit = {}
+	imageToPdf: () -> Unit = {},
+	mergePdf: () -> Unit = {},
+	splitPdf: () -> Unit = {},
+	sign: () -> Unit = {},
+	translatePdf: () -> Unit = {},
+	openTools: () -> Unit = {}
 ) {
 	MainFunction(
 		toSmartScan = toSmartScan,
-		toList = toList
+		imageToPdf = imageToPdf,
+		mergePdf = mergePdf,
+		splitPdf = splitPdf,
+		sign = sign,
+		translatePdf = translatePdf,
+		openTools = openTools
 	)
 }
 
@@ -52,27 +64,81 @@ data class FunctionData(
 fun MainFunction(
 	modifier: Modifier = Modifier,
 	toSmartScan: () -> Unit = {},
-	toList: () -> Unit = {}
+	imageToPdf: () -> Unit = {},
+	mergePdf: () -> Unit = {},
+	splitPdf: () -> Unit = {},
+	sign: () -> Unit = {},
+	translatePdf: () -> Unit = {},
+	openTools: () -> Unit = {}
 ) {
-	val functions = remember {
-		listOf(
-			FunctionData("Smart Scan", R.drawable.ic_scan, Color(0xFF4E52D9).copy(alpha = 0.1f), toSmartScan),
-			FunctionData("PDF List", R.drawable.ic_image_convert, Color(0xFFFFF7E2), toList),
-			FunctionData("Merge PDF", R.drawable.ic_merge, Color(0xFFFCDDEC)) {},
-			FunctionData("Split PDF", R.drawable.ic_split, Color(0xFFEBFFE6)) {},
-			FunctionData("Sign", R.drawable.ic_sign, Color(0xFFFCDDEC)) {},
-			FunctionData("Import Files", R.drawable.ic_import_file, Color(0xFFFFF7E2)) {},
-			FunctionData("Import Images", R.drawable.ic_image_convert, Color(0xFFFFF7E2)) {},
-			FunctionData("Tools", R.drawable.ic_tool, Color(0xFFFFECE8)) {}
+	val functions = listOf(
+		FunctionData(
+			stringResource(R.string.smart_scan),
+			R.drawable.ic_scan,
+			Color(0xFF4E52D9).copy(alpha = 0.1f),
+			toSmartScan
+		),
+		FunctionData(
+			stringResource(R.string.image_to_pdf),
+			R.drawable.ic_image_convert,
+			Color(0xFFFFCA10).copy(0.1f),
+			imageToPdf
+		),
+		FunctionData(
+			stringResource(R.string.merge_pdf),
+			R.drawable.ic_merge,
+			Color(0xFFF175B5).copy(0.1f),
+			mergePdf
+		),
+		FunctionData(
+			stringResource(R.string.split_pdf),
+			R.drawable.ic_split,
+			Color(0xFF42AD29).copy(0.1f),
+			splitPdf
+		),
+		FunctionData(
+			stringResource(R.string.sign),
+			R.drawable.ic_sign,
+			Color(0xFFF175B5).copy(0.1f),
+			sign
+		),
+		FunctionData(
+			stringResource(R.string.translate_pdf),
+			R.drawable.ic_translate,
+			Color(0xFF2B85FF).copy(0.1f),
+			translatePdf
 		)
-	}
-	Column(modifier = modifier
-		.fillMaxSize()
-		.padding(horizontal = 16.dp)) {
-		Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-			Text(text = "Main Function", fontSize = 20.sp)
+	)
+	Column(
+		modifier = modifier
+			.fillMaxWidth()
+			.padding(horizontal = 16.dp)
+	) {
+		Row(
+			modifier = Modifier
+				.fillMaxWidth()
+				.height(26.dp),
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			Text(
+				text = stringResource(R.string.main_function),
+				fontSize = 20.sp,
+				fontWeight = FontWeight.Medium
+			)
 			Spacer(modifier = Modifier.weight(1f))
-			Text(text = "View All", color = Color(0xFF9F9F9F), fontSize = 12.sp)
+			Box(
+				modifier = Modifier
+					.fillMaxHeight()
+					.clickable(enabled = true, onClick = openTools),
+				contentAlignment = Alignment.Center
+			) {
+				Text(
+					modifier = Modifier.padding(horizontal = 6.dp),
+					text = stringResource(R.string.view_all),
+					color = Color(0xFF9F9F9F),
+					fontSize = 12.sp
+				)
+			}
 		}
 		Spacer(modifier = Modifier.height(16.dp))
 		LazyVerticalGrid(
@@ -105,6 +171,7 @@ fun FunctionItem(
 		modifier = modifier.clickable(onClick = onClick),
 		horizontalAlignment = Alignment.CenterHorizontally
 	) {
+		Spacer(modifier = Modifier.height(4.dp))
 		Icon(
 			painter = painterResource(icon),
 			contentDescription = "Function Icon",

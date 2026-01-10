@@ -1,4 +1,12 @@
 <resources>
     <string name="app_name">CamScanner</string>
     <string name="select_a_file">Select a file</string>
+    <string name="main_function">Main Function</string>
+    <string name="view_all">View All</string>
+    <string name="smart_scan">Smart Scan</string>
+    <string name="image_to_pdf">Image to PDF</string>
+    <string name="merge_pdf">Merge PDF</string>
+    <string name="split_pdf">Split PDF</string>
+    <string name="sign">Sign</string>
+    <string name="translate_pdf">Translate PDF</string>
 </resources>

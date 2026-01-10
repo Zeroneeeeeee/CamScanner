@@ -21,7 +21,7 @@ fun Navigation(modifier: Modifier = Modifier) {
             entry<Screen.Home> {
                 HomeScreen(
                     toSmartScan = { backStack.add(Screen.SmartScan) },
-                    toList = { backStack.add(Screen.ListPDF) }
+                    imageToPdf = { backStack.add(Screen.ListPDF) }
                 )
             }
             entry<Screen.SmartScan> {
