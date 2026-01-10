@@ -7,30 +7,30 @@ import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import gambi.zerone.camscanner.view.files.FileScreen
-import gambi.zerone.camscanner.view.scanner.Scanner
+import gambi.zerone.camscanner.view.scanner.CameraScan
 
 @Composable
 fun Navigation(modifier: Modifier = Modifier) {
-    val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
-    NavDisplay(
-        backStack = backStack,
-        onBack = {
-            backStack.removeLastOrNull()
-        },
-        entryProvider = entryProvider {
-            entry<Screen.Home> {
-                HomeScreen(
-                    modifier = modifier,
-                    toSmartScan = { backStack.add(Screen.SmartScan) },
-                    imageToPdf = { backStack.add(Screen.ListPDF) }
-                )
-            }
-            entry<Screen.SmartScan> {
-                Scanner()
-            }
-            entry<Screen.ListPDF> {
-                FileScreen()
-            }
-        }
-    )
+	val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
+	NavDisplay(
+		backStack = backStack,
+		onBack = {
+			backStack.removeLastOrNull()
+		},
+		entryProvider = entryProvider {
+			entry<Screen.Home> {
+				HomeScreen(
+					modifier = modifier,
+					toSmartScan = { backStack.add(Screen.SmartScan) },
+					imageToPdf = { backStack.add(Screen.ListPDF) }
+				)
+			}
+			entry<Screen.SmartScan> {
+				CameraScan()
+			}
+			entry<Screen.ListPDF> {
+				FileScreen()
+			}
+		}
+	)
 }

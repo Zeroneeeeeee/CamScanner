@@ -34,11 +34,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import gambi.zerone.camscanner.view.scanner.HandleCameraPermission
 
 //@Preview(showBackground = true)
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
 	modifier: Modifier = Modifier,
@@ -51,17 +53,19 @@ fun HomeScreen(
 	openTools: () -> Unit = {},
 	clickSearch: () -> Unit = {},
 ) {
-	Column(modifier = modifier.fillMaxSize()) {
-		TopHomeScreen(clickSearch = clickSearch)
-		MainFunction(
-			toSmartScan = toSmartScan,
-			imageToPdf = imageToPdf,
-			mergePdf = mergePdf,
-			splitPdf = splitPdf,
-			sign = sign,
-			translatePdf = translatePdf,
-			openTools = openTools
-		)
+	HandleCameraPermission(onPermissionGranted = toSmartScan) { requestPermissionCamera ->
+		Column(modifier = modifier.fillMaxSize()) {
+			TopHomeScreen(clickSearch = clickSearch)
+			MainFunction(
+				toSmartScan = requestPermissionCamera,
+				imageToPdf = imageToPdf,
+				mergePdf = mergePdf,
+				splitPdf = splitPdf,
+				sign = sign,
+				translatePdf = translatePdf,
+				openTools = openTools
+			)
+		}
 	}
 }
 
