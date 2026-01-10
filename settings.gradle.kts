@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CamScanner"
 include(":app")
- 
+include(":opencv")

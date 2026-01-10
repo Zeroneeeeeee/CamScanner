@@ -45,6 +45,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":opencv"))
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
