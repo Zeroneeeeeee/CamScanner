@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CamScanner</string>
+    <string name="select_a_file">Select a file</string>
+</resources>
