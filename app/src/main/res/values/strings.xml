@@ -9,4 +9,5 @@
     <string name="split_pdf">Split PDF</string>
     <string name="sign">Sign</string>
     <string name="translate_pdf">Translate PDF</string>
+    <string name="search">Search</string>
 </resources>

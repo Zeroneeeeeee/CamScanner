@@ -46,6 +46,7 @@ android {
 
 dependencies {
     implementation(project(":opencv"))
+    implementation(libs.commoncompose)
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
