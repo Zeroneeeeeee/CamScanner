@@ -1,4 +1,4 @@
-package gambi.zerone.camscanner.view.scanner
+package gambi.zerone.camscanner.view.files
 
 import android.Manifest
 import android.os.Build
@@ -46,7 +46,7 @@ fun Content(modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun PdfListScreen(viewModel: ScannerViewModel = viewModel()) {
+fun PdfListScreen(viewModel: FilesViewModel = viewModel()) {
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_EXTERNAL_STORAGE
     } else {
