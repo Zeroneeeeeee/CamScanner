@@ -11,26 +11,28 @@ import gambi.zerone.camscanner.view.scanner.CameraScan
 
 @Composable
 fun Navigation(modifier: Modifier = Modifier) {
-	val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
-	NavDisplay(
-		backStack = backStack,
-		onBack = {
-			backStack.removeLastOrNull()
-		},
-		entryProvider = entryProvider {
-			entry<Screen.Home> {
-				HomeScreen(
-					modifier = modifier,
-					toSmartScan = { backStack.add(Screen.SmartScan) },
-					imageToPdf = { backStack.add(Screen.ListPDF) }
-				)
-			}
-			entry<Screen.SmartScan> {
-				CameraScan()
-			}
-			entry<Screen.ListPDF> {
-				FileScreen()
-			}
-		}
-	)
+    val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
+    NavDisplay(
+        backStack = backStack,
+        onBack = {
+            backStack.removeLastOrNull()
+        },
+        entryProvider = entryProvider {
+            entry<Screen.Home> {
+                HomeScreen(
+                    modifier = modifier,
+                    toSmartScan = { backStack.add(Screen.SmartScan) },
+                    imageToPdf = { backStack.add(Screen.ListPDF) }
+                )
+            }
+            entry<Screen.SmartScan> {
+                CameraScan(
+                    modifier = modifier,
+                    onBack = { backStack.removeLastOrNull() })
+            }
+            entry<Screen.ListPDF> {
+                FileScreen()
+            }
+        }
+    )
 }

@@ -53,6 +53,7 @@ dependencies {
 
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.exifinterface)
 
     implementation(libs.androidx.foundation.android)
 
@@ -61,7 +62,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.lifecycle.viewmodel)
-
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.lifecycle)
     implementation(libs.coil.compose)
 
     implementation(libs.androidx.core.ktx)
