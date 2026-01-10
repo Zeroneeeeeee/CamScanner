@@ -1,10 +1,11 @@
-package gambi.zerone.camscanner.view.scanner
+package gambi.zerone.camscanner.view.files
 
 import android.app.Application
 import android.content.ContentUris
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +15,7 @@ import kotlinx.coroutines.withContext
 
 data class PdfFile(val uri: Uri, val name: String)
 
-class ScannerViewModel(application: Application) : AndroidViewModel(application) {
+class FilesViewModel(application: Application) : AndroidViewModel(application) {
     var pdfFiles = mutableStateListOf<PdfFile>()
         private set
 
@@ -24,7 +25,7 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
         val cursor = getApplication<Application>().contentResolver.query(uri, null, null, null, null)
         cursor?.use {
             if (it.moveToFirst()) {
-                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (nameIndex != -1) {
                     name = it.getString(nameIndex)
                 }

@@ -45,8 +45,9 @@ android {
 }
 
 dependencies {
-    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
+
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)

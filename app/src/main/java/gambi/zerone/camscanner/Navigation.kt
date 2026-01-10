@@ -6,8 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
-import gambi.zerone.camscanner.view.scanner.FileScreen
-import gambi.zerone.camscanner.view.scanner.PdfListScreen
+import gambi.zerone.camscanner.view.files.FileScreen
 import gambi.zerone.camscanner.view.scanner.Scanner
 
 @Composable
