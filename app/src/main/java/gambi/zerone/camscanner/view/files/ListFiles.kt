@@ -30,13 +30,22 @@ fun Content(modifier: Modifier = Modifier) {
         Spacer(Modifier.size(32.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Absolute.SpaceEvenly) {
             FunctionItem(
-                functionName = "Import Files"
+                icon = R.drawable.ic_import_file,
+                functionName = "Import Files",
+                iconTint = Color(0xFFFFCA10),
+                iconBackground = Color(0xFFFFF7E2)
             )
             FunctionItem(
-                functionName = "Import Images"
+                icon = R.drawable.ic_import_image,
+                functionName = "Import Images",
+                iconTint = Color(0xFF2B85FF),
+                iconBackground = Color(0xFFEBF3FF)
             )
             FunctionItem(
-                functionName = "Create Folder"
+                icon =R.drawable.ic_create_folder_outlined,
+                functionName = "Create Folder",
+                iconTint = Color(0xFF42AD29),
+                iconBackground = Color(0xFFEBFFE6)
             )
         }
         Spacer(Modifier.size(32.dp))
