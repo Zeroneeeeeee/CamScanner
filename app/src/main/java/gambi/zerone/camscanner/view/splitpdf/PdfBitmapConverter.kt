@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -16,75 +17,150 @@ import java.io.File
 import java.io.FileOutputStream
 
 class PdfBitmapConverter(
-    private val context: Context,
+    private val context: Context
 ) {
-    var renderer: PdfRenderer? = null
 
-    suspend fun pdfToBitmaps(contentUri: Uri, ratio: Int = 1): List<Bitmap> {
-        return withContext(Dispatchers.IO) {
-            renderer?.close()
+    // =========================
+    // GIỮ BIẾN CŨ
+    // =========================
+    private var renderer: PdfRenderer? = null
+    private var descriptor: ParcelFileDescriptor? = null
 
-            context
-                .contentResolver
-                .openFileDescriptor(contentUri, "r")
-                ?.use { descriptor ->
-                    with(PdfRenderer(descriptor)) {
-                        renderer = this
+    // =========================
+    // BIẾN MỚI CHO MULTI PDF
+    // =========================
+    private val renderers = mutableListOf<PdfRenderer>()
+    private val descriptors = mutableListOf<ParcelFileDescriptor>()
+    private val pageOffsets = mutableListOf<Int>()
 
-                        return@withContext (0 until pageCount).map { index ->
-                            async {
-                                openPage(index).use { page ->
-                                    val bitmap = createBitmap(
-                                        page.width / ratio,
-                                        page.height / ratio,
-                                        config = Bitmap.Config.ARGB_8888
-                                    )
+    private val lock = Any()
 
-                                    val canvas = Canvas(bitmap).apply {
-                                        drawColor(Color.WHITE)
-                                        drawBitmap(bitmap, 0f, 0f, null)
-                                    }
+    // =========================
+    // GIỮ HÀM CŨ – 1 FILE
+    // =========================
+    fun openPdf(uri: Uri) {
+        openPdfs(listOf(uri))
+    }
 
-                                    page.render(
-                                        bitmap,
-                                        null,
-                                        null,
-                                        PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
-                                    )
+    // =========================
+    // HÀM MỚI – N FILE
+    // =========================
+    fun openPdfs(uris: List<Uri>) {
+        close()
 
-                                    bitmap
-                                }
-                            }
-                        }.awaitAll()
-                    }
-                }
-            return@withContext emptyList()
+        var currentOffset = 0
+
+        uris.forEach { uri ->
+            val descriptor =
+                context.contentResolver.openFileDescriptor(uri, "r") ?: return@forEach
+
+            val renderer = PdfRenderer(descriptor)
+
+            // lưu lại renderer cũ để giữ tương thích
+            if (renderers.isEmpty()) {
+                this.renderer = renderer
+                this.descriptor = descriptor
+            }
+
+            renderers.add(renderer)
+            descriptors.add(descriptor)
+            pageOffsets.add(currentOffset)
+
+            currentOffset += renderer.pageCount
         }
     }
-}
 
-fun bitmapsToPdf(
-    context: Context,
-    bitmaps: List<Bitmap>,
-    fileName: String = "output.pdf"
-): File {
-    val pdfDocument = PdfDocument()
+    // =========================
+    // GIỮ TÊN CŨ
+    // =========================
+    val pageCount: Int
+        get() = if (renderers.isEmpty()) {
+            renderer?.pageCount ?: 0
+        } else {
+            renderers.sumOf { it.pageCount }
+        }
 
-    bitmaps.forEachIndexed { index, bitmap ->
-        val pageInfo = PdfDocument.PageInfo.Builder(
-            bitmap.width,
-            bitmap.height,
-            index + 1
-        ).create()
+    // =========================
+    // GIỮ TÊN + CHỮ KÝ CŨ
+    // =========================
+    suspend fun renderPage(
+        index: Int,
+        maxWidth: Int,
+        maxHeight: Int
+    ): Bitmap? = withContext(Dispatchers.IO) {
 
-        val page = pdfDocument.startPage(pageInfo)
-        page.canvas.drawBitmap(bitmap, 0f, 0f, null)
-        pdfDocument.finishPage(page)
+        synchronized(lock) {
+
+            // ===== 1 PDF (backward compatible)
+            if (renderers.isEmpty()) {
+                val page = renderer?.openPage(index) ?: return@withContext null
+                try {
+                    renderPageInternal(page, maxWidth, maxHeight)
+                } finally {
+                    page.close()
+                }
+            }
+            // ===== N PDF
+            else {
+                val rendererIndex = pageOffsets.indexOfLast { index >= it }
+                if (rendererIndex == -1) return@withContext null
+
+                val localIndex = index - pageOffsets[rendererIndex]
+                val page = renderers[rendererIndex].openPage(localIndex)
+
+                try {
+                    renderPageInternal(page, maxWidth, maxHeight)
+                } finally {
+                    page.close()
+                }
+            }
+        }
     }
 
-    val file = File(context.cacheDir, fileName)
-    pdfDocument.writeTo(FileOutputStream(file))
-    pdfDocument.close()
+    // =========================
+    // PRIVATE HELPER
+    // =========================
+    private fun renderPageInternal(
+        page: PdfRenderer.Page,
+        maxWidth: Int,
+        maxHeight: Int
+    ): Bitmap {
 
-    return file
+        val scale = minOf(
+            maxWidth.toFloat() / page.width,
+            maxHeight.toFloat() / page.height,
+            1f
+        )
+
+        val bitmapWidth = (page.width * scale).toInt().coerceAtLeast(1)
+        val bitmapHeight = (page.height * scale).toInt().coerceAtLeast(1)
+
+        val bitmap = createBitmap(bitmapWidth, bitmapHeight)
+
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        page.render(
+            bitmap,
+            null,
+            null,
+            PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
+        )
+
+        return bitmap
+    }
+
+    // =========================
+    // GIỮ TÊN CŨ
+    // =========================
+    fun close() {
+        renderer?.close()
+        renderers.forEach { it.close() }
+        renderer = null
+        descriptor = null
+
+        renderers.clear()
+        descriptors.clear()
+        pageOffsets.clear()
+    }
 }
