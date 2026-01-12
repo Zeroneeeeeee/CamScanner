@@ -3,6 +3,7 @@ package gambi.zerone.camscanner.helpers
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -68,6 +69,12 @@ fun File.saveJPEG(bitmap: Bitmap, quality: Int = 91, rotation: Int = 0) {
 	}
 	if (rotation != 0) this.writeRotation(rotation)
 }
+
+val Canvas.largestDimension: Int
+	get() {
+		return if (width > height) width
+		else height
+	}
 
 val Bitmap.largestDimension: Int
 	get() {

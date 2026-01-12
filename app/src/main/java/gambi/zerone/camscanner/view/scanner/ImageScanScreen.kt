@@ -1,5 +1,6 @@
 package gambi.zerone.camscanner.view.scanner
 
+import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -23,11 +24,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,13 +52,19 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import common.libs.compose.toast.CToastConfiguration
+import common.libs.compose.toast.CToastHost
+import common.libs.compose.toast.CToastState
+import common.libs.compose.toast.CToastType
+import common.libs.compose.toast.LocalCToastConfig
 import gambi.zerone.camscanner.R
+import gambi.zerone.camscanner.helpers.captureBitmap
+import gambi.zerone.camscanner.helpers.getImage
 import gambi.zerone.camscanner.helpers.getImageFolder
 import gambi.zerone.camscanner.helpers.observeDirectoryChanges
 import gambi.zerone.camscanner.ui.theme.LightBackground
 import gambi.zerone.camscanner.view.components.Badge
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -65,10 +74,11 @@ import java.io.File
 @Composable
 fun CameraScan(
     modifier: Modifier = Modifier,
+    resultScan: (scanned: Pair<Bitmap, Int>) -> Unit = {},
     onBack: () -> Unit,
 ) {
-    val context = LocalContext.current
     var flashMode by remember { mutableIntStateOf(ImageCapture.FLASH_MODE_OFF) }
+    val cToastState = remember { CToastState() }
     val scope = rememberCoroutineScope()
     var capturing by remember { mutableStateOf(false) }
 
@@ -83,28 +93,46 @@ fun CameraScan(
     }
 
     BackHandler { onBack() }
-    Column(
-        modifier = modifier.fillMaxSize()
-    ) {
-        TopScreen(onBack = onBack, flashMode = flashMode, onClickFlash = { flashMode = it })
-        CameraPreview(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            imageCaptureConfig = imageCaptureConfig
-        )
-        BottomScreen(
-            capturing = capturing,
-            onClickCapture = {
-                if (capturing) return@BottomScreen
-                capturing = true
-                scope.launch {
-                    delay(2000)
-                    capturing = false
-                }
-            },
-            openListScan = {}
-        )
+    CompositionLocalProvider(LocalCToastConfig provides CToastConfiguration()) {
+        Column(
+            modifier = modifier.fillMaxSize()
+        ) {
+            TopScreen(onBack = onBack, flashMode = flashMode, onClickFlash = { flashMode = it })
+            CameraPreview(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                imageCaptureConfig = imageCaptureConfig
+            )
+            BottomScreen(
+                capturing = capturing,
+                onClickCapture = {
+                    if (capturing) return@BottomScreen
+                    capturing = true
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                        	val image = imageCaptureConfig.getImage()
+                            val bitmap = image.captureBitmap()
+                            val rotation = image.imageInfo.rotationDegrees
+                            image.close()
+                            resultScan(bitmap to rotation)
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                cToastState.setAndShow(
+                                    message = e.message?:"Error",
+                                    type = CToastType.ERROR
+                                )
+                            }
+                        } finally {
+                        	capturing = false
+                        }
+                    }
+                },
+                openListScan = {}
+            )
+        }
+
+        CToastHost(cToastState, Modifier.systemBarsPadding())
     }
 }
 
@@ -161,7 +189,6 @@ fun TopScreen(
     }
 }
 
-@Preview(showBackground = true)
 @Composable
 fun BottomScreen(
     capturing: Boolean = false,
@@ -229,6 +256,12 @@ fun CaptureButton(
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+fun ImagesSmallViewPreview() {
+    ImagesSmallView {}
+}
+
 @Composable
 fun ImagesSmallView(click: () -> Unit) {
     if (LocalInspectionMode.current) {
@@ -251,10 +284,11 @@ fun ImagesSmallView(click: () -> Unit) {
         images.maxByOrNull(File::lastModified)
     }
 
-    if (mostRecentImage != null) {
+//    if (mostRecentImage != null) {
         Box(
             modifier = Modifier
                 .size(45.dp)
+                .background(MaterialTheme.colorScheme.outline)
                 .clickable(enabled = true, onClick = click)
         ) {
             AsyncImage(
@@ -263,14 +297,14 @@ fun ImagesSmallView(click: () -> Unit) {
                 contentDescription = null,
                 contentScale = ContentScale.Crop
             )
-            Badge(modifier = Modifier.align(Alignment.TopEnd), nr = images.size)
+            Badge(modifier = Modifier.align(Alignment.TopEnd), nr = if (mostRecentImage != null)images.size else 0)
         }
-    } else {
-        Box(
-            modifier = Modifier
-                .size(45.dp)
-                .background(MaterialTheme.colorScheme.outline)
-                .clickable(enabled = true, onClick = {})
-        )
-    }
+//    } else {
+//        Box(
+//            modifier = Modifier
+//                .size(45.dp)
+//                .background(MaterialTheme.colorScheme.outline)
+//                .clickable(enabled = true, onClick = {})
+//        )
+//    }
 }
