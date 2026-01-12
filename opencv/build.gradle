@@ -93,7 +93,7 @@ apply plugin: 'maven-publish'
 try {
     apply plugin: 'kotlin-android'
     println "Configure OpenCV with Kotlin"
-} catch (Exception e) {
+} catch (Exception ignored) {
     println "Configure OpenCV without Kotlin"
 }
 
@@ -200,7 +200,8 @@ publishing {
     repositories {
         maven {
             name = 'myrepo'
-            url = "${project.buildDir}/repo"
+//            url = "${project.buildDir}/repo"
+            url = layout.buildDirectory.dir('repo')
         }
     }
 }
