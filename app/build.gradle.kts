@@ -49,6 +49,16 @@ dependencies {
     implementation(libs.commoncompose)
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+// To recognize Chinese script
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1")
+// To recognize Devanagari script
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-devanagari:16.0.1")
+// To recognize Japanese script
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
+// To recognize Korean script
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1")
+
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     implementation(libs.androidx.navigation3.runtime)

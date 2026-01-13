@@ -13,7 +13,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-data class PdfFile(val uri: Uri, val name: String)
+data class PdfFile(
+    val uri: Uri,
+    val name: String,
+    val size: Long,        // bytes
+    val dateAdded: Long    // millis
+)
 
 class FilesViewModel(application: Application) : AndroidViewModel(application) {
     var pdfFiles = mutableStateListOf<PdfFile>()
@@ -49,8 +54,11 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
             val projection = arrayOf(
                 MediaStore.Files.FileColumns._ID,
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.DATA // Một số máy cũ cần cột này để lấy tên
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_ADDED,
+                MediaStore.Files.FileColumns.DATA // fallback cho máy cũ
             )
+
 
             val selection = "${MediaStore.Files.FileColumns.MIME_TYPE} = ?"
             val selectionArgs = arrayOf("application/pdf")
@@ -65,25 +73,38 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
                 )?.use { cursor ->
                     val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
                     val nameColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                    val sizeColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
+                    val dateAddedColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_ADDED)
                     val dataColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
 
                     while (cursor.moveToNext()) {
                         val id = cursor.getLong(idColumn)
 
-                        // Thử lấy tên từ DISPLAY_NAME, nếu không có thì lấy từ đường dẫn DATA
                         var name = if (nameColumn != -1) cursor.getString(nameColumn) else null
                         if (name.isNullOrEmpty() && dataColumn != -1) {
                             val path = cursor.getString(dataColumn)
                             name = path?.substringAfterLast('/')
                         }
 
-                        val contentUri = ContentUris.withAppendedId(collection, id)
+                        val size = if (sizeColumn != -1) cursor.getLong(sizeColumn) else 0L
 
-                        // Nếu vẫn Unknown, dùng hàm getFileName bổ trợ
+                        val dateAddedSeconds =
+                            if (dateAddedColumn != -1) cursor.getLong(dateAddedColumn) else 0L
+                        val dateAddedMillis = dateAddedSeconds * 1000
+
+                        val contentUri = ContentUris.withAppendedId(collection, id)
                         val finalName = name ?: getFileName(contentUri)
 
-                        tempList.add(PdfFile(contentUri, finalName))
+                        tempList.add(
+                            PdfFile(
+                                uri = contentUri,
+                                name = finalName,
+                                size = size,
+                                dateAdded = dateAddedMillis
+                            )
+                        )
                     }
+
                 }
 
                 withContext(Dispatchers.Main) {
@@ -95,4 +116,26 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+}
+
+fun Long.formatFileSize(): String {
+    val kb = this / 1024.0
+    val mb = kb / 1024.0
+    val gb = mb /1024.0
+    return when {
+        mb >= 1 -> String.format("%.2f MB", mb)
+        kb >= 1 -> String.format("%.2f KB", kb)
+        gb>=1 -> String.format("%.2f GB", gb)
+        else -> "$this B"
+    }
+}
+
+fun Long.formatDate(): String {
+    val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date(this))
+}
+
+fun Long.formatTime(): String {
+    val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date(this))
 }

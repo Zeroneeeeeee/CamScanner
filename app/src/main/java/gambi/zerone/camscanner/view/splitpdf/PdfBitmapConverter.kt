@@ -20,31 +20,19 @@ class PdfBitmapConverter(
     private val context: Context
 ) {
 
-    // =========================
-    // GIỮ BIẾN CŨ
-    // =========================
     private var renderer: PdfRenderer? = null
     private var descriptor: ParcelFileDescriptor? = null
 
-    // =========================
-    // BIẾN MỚI CHO MULTI PDF
-    // =========================
     private val renderers = mutableListOf<PdfRenderer>()
     private val descriptors = mutableListOf<ParcelFileDescriptor>()
     private val pageOffsets = mutableListOf<Int>()
 
     private val lock = Any()
 
-    // =========================
-    // GIỮ HÀM CŨ – 1 FILE
-    // =========================
     fun openPdf(uri: Uri) {
         openPdfs(listOf(uri))
     }
 
-    // =========================
-    // HÀM MỚI – N FILE
-    // =========================
     fun openPdfs(uris: List<Uri>) {
         close()
 
@@ -56,7 +44,6 @@ class PdfBitmapConverter(
 
             val renderer = PdfRenderer(descriptor)
 
-            // lưu lại renderer cũ để giữ tương thích
             if (renderers.isEmpty()) {
                 this.renderer = renderer
                 this.descriptor = descriptor
@@ -70,9 +57,6 @@ class PdfBitmapConverter(
         }
     }
 
-    // =========================
-    // GIỮ TÊN CŨ
-    // =========================
     val pageCount: Int
         get() = if (renderers.isEmpty()) {
             renderer?.pageCount ?: 0
@@ -80,9 +64,6 @@ class PdfBitmapConverter(
             renderers.sumOf { it.pageCount }
         }
 
-    // =========================
-    // GIỮ TÊN + CHỮ KÝ CŨ
-    // =========================
     suspend fun renderPage(
         index: Int,
         maxWidth: Int,
@@ -117,9 +98,6 @@ class PdfBitmapConverter(
         }
     }
 
-    // =========================
-    // PRIVATE HELPER
-    // =========================
     private fun renderPageInternal(
         page: PdfRenderer.Page,
         maxWidth: Int,
@@ -150,9 +128,6 @@ class PdfBitmapConverter(
         return bitmap
     }
 
-    // =========================
-    // GIỮ TÊN CŨ
-    // =========================
     fun close() {
         renderer?.close()
         renderers.forEach { it.close() }
