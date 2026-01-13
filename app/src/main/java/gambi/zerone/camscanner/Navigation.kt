@@ -25,6 +25,7 @@ import gambi.zerone.camscanner.helpers.unwrap
 import gambi.zerone.camscanner.view.files.FileScreen
 import gambi.zerone.camscanner.view.scanner.CameraScan
 import gambi.zerone.camscanner.view.scanner.CropScanned
+import gambi.zerone.camscanner.view.scanner.listScanned.ListScanned
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -86,6 +87,7 @@ fun Context.Navigation(
 						}
 						backStack.add(Screen.CropScan(it))
 					},
+					openListScan = { backStack.add(Screen.ListScanned) },
 					onBack = {
 						backStack.removeLastOrNull()
 						bitmapAndRotation = null
@@ -147,6 +149,12 @@ fun Context.Navigation(
 							}
 						}
 					}
+				)
+			}
+			entry<Screen.ListScanned> {
+				ListScanned(
+					modifier = modifier.fillMaxSize(),
+					onBack = { backStack.removeLastOrNull() }
 				)
 			}
 		}

@@ -22,6 +22,30 @@ import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
 import gambi.zerone.camscanner.entity.ImageBounds
 import gambi.zerone.camscanner.entity.ResizedDimensions
+import kotlinx.coroutines.yield
+import org.opencv.android.Utils
+import org.opencv.core.Mat
+import org.opencv.imgproc.Imgproc
+
+fun File.rotate90Degrees() {
+	val exifInterface = ExifInterface(this.absolutePath)
+
+	val orientation = exifInterface.getAttributeInt(
+		ExifInterface.TAG_ORIENTATION,
+		ExifInterface.ORIENTATION_NORMAL
+	)
+
+	val newOrientation = when (orientation) {
+		ExifInterface.ORIENTATION_NORMAL, ExifInterface.ORIENTATION_UNDEFINED -> ExifInterface.ORIENTATION_ROTATE_90
+		ExifInterface.ORIENTATION_ROTATE_90 -> ExifInterface.ORIENTATION_ROTATE_180
+		ExifInterface.ORIENTATION_ROTATE_180 -> ExifInterface.ORIENTATION_ROTATE_270
+//        ExifInterface.ORIENTATION_ROTATE_270 -> ExifInterface.ORIENTATION_NORMAL
+		else -> ExifInterface.ORIENTATION_NORMAL
+	}
+
+	exifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, newOrientation.toString())
+	exifInterface.saveAttributes()
+}
 
 fun Context.tempFolder(): File {
 	return File(filesDir, "temp_folder").also(File::mkdirs)
@@ -90,6 +114,13 @@ fun File.toBitmap(
 	val bounds = this.getImageBounds()
 	val rotation = bounds.rotation
 	return toScaledBitmap(wanted, from, to, bounds.largest()) to rotation
+}
+
+fun File.toBitmap(): Bitmap {
+	val bitmapOptions = BitmapFactory.Options().apply {
+		inScaled = false
+	}
+	return BitmapFactory.decodeFile(absolutePath, bitmapOptions)
 }
 
 fun File.bitmapRotation(): Int {
@@ -345,4 +376,108 @@ fun findDivider(wanted: Int, original: Int): Int {
 	}
 
 	return divider
+}
+
+suspend fun File.getOrCreateEffectImageFile(context: Context, mode: Int): File {
+	val file = File(context.getEffectImageFolder(), this.name)
+	if (!file.exists()) {
+		val mat = Mat()
+		val rotation = this.bitmapRotation()
+
+		Utils.bitmapToMat(this.toBitmap(), mat)
+		yield()
+		val next = when (mode) {
+			0 -> mat
+			1 -> {
+				val finalMat = autoBrightness(mat)
+				mat.release()
+				finalMat
+			}
+
+//			2 -> {
+//				val bwMat = Mat()
+//				Imgproc.cvtColor(mat, bwMat, Imgproc.COLOR_RGB2GRAY)
+//				val finalMat = autoBrightnessGray(bwMat)
+//				bwMat.release()
+//				finalMat
+//			}
+
+			2 -> {
+				val temp = autoBrightness(mat)
+				val temp2 = blackAndWhiteFilter(temp)
+				temp.release()
+				val bwMat = Mat()
+				Imgproc.cvtColor(temp2, bwMat, Imgproc.COLOR_RGB2GRAY)
+				temp2.release()
+				bwMat
+			}
+
+			3 -> {
+				val temp = autoBrightness(mat)
+				val temp2 = documentMat(temp)
+				temp.release()
+				val bwMat = Mat()
+				Imgproc.cvtColor(temp2, bwMat, Imgproc.COLOR_RGB2GRAY)
+				temp2.release()
+				bwMat
+			}
+
+			4 -> {
+				val temp = autoBrightness(mat)
+				val temp2 = magicColorFilter(temp)
+				temp.release()
+				val bwMat = Mat()
+				Imgproc.cvtColor(temp2, bwMat, Imgproc.COLOR_RGB2GRAY)
+				temp2.release()
+				bwMat
+			}
+
+			5 -> {
+				val temp = autoBrightness(mat)
+				val temp2 = grayscaleFilter(temp)
+				temp.release()
+				val bwMat = Mat()
+				Imgproc.cvtColor(temp2, bwMat, Imgproc.COLOR_RGB2GRAY)
+				temp2.release()
+				bwMat
+			}
+
+			6 -> {
+				val bwMat = Mat()
+				Imgproc.cvtColor(mat, bwMat, Imgproc.COLOR_RGB2GRAY)
+				val finalMat = invertColorFilter(bwMat)
+				bwMat.release()
+				finalMat
+			}
+
+			7 -> {
+				val bwMat = Mat()
+				Imgproc.cvtColor(mat, bwMat, Imgproc.COLOR_RGB2GRAY)
+				val finalMat = sharpenFilter(bwMat)
+				bwMat.release()
+				finalMat
+			}
+
+			8 -> {
+				val bwMat = Mat()
+				Imgproc.cvtColor(mat, bwMat, Imgproc.COLOR_RGB2GRAY)
+				val finalMat = warmToneFilter(bwMat)
+				bwMat.release()
+				finalMat
+			}
+
+			else -> {
+				val final = autoBrightness(mat)
+				mat.release()
+				final
+			}
+		}
+		yield()
+		val bitmap = next.toBitmap()
+		next.release()
+		yield()
+		file.saveJPEG(bitmap = bitmap, rotation = rotation)
+
+	}
+	return file
 }

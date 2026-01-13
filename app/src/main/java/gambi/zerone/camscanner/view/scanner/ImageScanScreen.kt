@@ -1,5 +1,6 @@
 package gambi.zerone.camscanner.view.scanner
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.camera.core.ImageCapture
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +45,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
@@ -72,239 +75,261 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun CameraScan(
-    modifier: Modifier = Modifier,
-    resultScan: (scanned: Pair<Bitmap, Int>) -> Unit = {},
-    onBack: () -> Unit,
+fun Context.CameraScan(
+	modifier: Modifier = Modifier,
+	resultScan: (scanned: Pair<Bitmap, Int>) -> Unit = {},
+	openListScan: () -> Unit,
+	onBack: () -> Unit,
 ) {
-    var flashMode by remember { mutableIntStateOf(ImageCapture.FLASH_MODE_OFF) }
-    val cToastState = remember { CToastState() }
-    val scope = rememberCoroutineScope()
-    var capturing by remember { mutableStateOf(false) }
+	var flashMode by remember { mutableIntStateOf(ImageCapture.FLASH_MODE_OFF) }
+	val cToastState = remember { CToastState() }
+	val scope = rememberCoroutineScope()
+	var capturing by remember { mutableStateOf(false) }
 
-    val imageCaptureConfig = remember {
-        ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            .setResolutionSelector(defaultResolutionSelector()).build()
-    }
+	val imageFolder = remember { getImageFolder() }
+	val imageCaptureConfig = remember {
+		ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+			.setResolutionSelector(defaultResolutionSelector()).build()
+	}
 
-    LaunchedEffect(flashMode) {
-        val flow = snapshotFlow { flashMode }
-        flow.onEach { imageCaptureConfig.flashMode = it }.launchIn(this)
-    }
+	LaunchedEffect(flashMode) {
+		val flow = snapshotFlow { flashMode }
+		flow.onEach { imageCaptureConfig.flashMode = it }.launchIn(this)
+	}
 
-    BackHandler { onBack() }
-    CompositionLocalProvider(LocalCToastConfig provides CToastConfiguration()) {
-        Column(
-            modifier = modifier.fillMaxSize()
-        ) {
-            TopScreen(onBack = onBack, flashMode = flashMode, onClickFlash = { flashMode = it })
-            CameraPreview(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                imageCaptureConfig = imageCaptureConfig
-            )
-            BottomScreen(
-                capturing = capturing,
-                onClickCapture = {
-                    if (capturing) return@BottomScreen
-                    capturing = true
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                        	val image = imageCaptureConfig.getImage()
-                            val bitmap = image.captureBitmap()
-                            val rotation = image.imageInfo.rotationDegrees
-                            image.close()
-                            resultScan(bitmap to rotation)
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                cToastState.setAndShow(
-                                    message = e.message?:"Error",
-                                    type = CToastType.ERROR
-                                )
-                            }
-                        } finally {
-                        	capturing = false
-                        }
-                    }
-                },
-                openListScan = {}
-            )
-        }
+	BackHandler { onBack() }
+	CompositionLocalProvider(LocalCToastConfig provides CToastConfiguration()) {
+		Column(
+			modifier = modifier.fillMaxSize()
+		) {
+			TopScreen(
+				onBack = onBack,
+				flashMode = flashMode,
+				onClickFlash = { flashMode = it }
+			)
+			CameraPreview(
+				modifier = Modifier
+					.fillMaxWidth()
+					.weight(1f),
+				imageCaptureConfig = imageCaptureConfig
+			)
+			BottomScreen(
+				capturing = capturing,
+				onClickCapture = {
+					if (capturing) return@BottomScreen
+					capturing = true
+					scope.launch(Dispatchers.IO) {
+						try {
+							val image = imageCaptureConfig.getImage()
+							val bitmap = image.captureBitmap()
+							val rotation = image.imageInfo.rotationDegrees
+							image.close()
+							resultScan(bitmap to rotation)
+						} catch (e: Exception) {
+							withContext(Dispatchers.Main) {
+								cToastState.setAndShow(
+									message = e.message ?: "Error",
+									type = CToastType.ERROR
+								)
+							}
+						} finally {
+							capturing = false
+						}
+					}
+				},
+				openListScan = {
+					scope.launch {
+						imageFolder.listFiles()?.let { files ->
+							if (files.isEmpty()) {
+								cToastState.setAndShow(
+									message = "No images found",
+									type = CToastType.INFO,
+									duration = 900
+								)
+							} else {
+								openListScan()
+							}
+						} ?: run {
+							cToastState.setAndShow(
+								message = "No images found",
+								type = CToastType.ERROR,
+								duration = 900
+							)
+						}
+					}
+				}
+			)
+		}
 
-        CToastHost(cToastState, Modifier.systemBarsPadding())
-    }
+		CToastHost(cToastState, Modifier.systemBarsPadding())
+	}
 }
 
 fun defaultResolutionSelector() = ResolutionSelector.Builder().apply {
-    setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+	setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
 }.build()
 
 @Composable
 fun TopScreen(
-    onBack: () -> Unit,
-    flashMode: Int,
-    onClickFlash: (Int) -> Unit = {},
+	onBack: () -> Unit,
+	flashMode: Int,
+	onClickFlash: (Int) -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(
-            modifier = Modifier
-                .height(55.dp)
-                .aspectRatio(1f), onClick = onBack
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_back),
-                contentDescription = "back",
-                tint = Color.Unspecified
-            )
-        }
-        Spacer(
-            modifier = Modifier
-                .height(5.dp)
-                .weight(1f)
-        )
-        IconButton(
-            modifier = Modifier
-                .height(55.dp)
-                .aspectRatio(1f), onClick = {
-                if (flashMode == ImageCapture.FLASH_MODE_ON) {
-                    onClickFlash(ImageCapture.FLASH_MODE_OFF)
-                } else {
-                    onClickFlash(ImageCapture.FLASH_MODE_ON)
-                }
-            }) {
-            Icon(
-                painter = when (flashMode) {
-                    ImageCapture.FLASH_MODE_ON -> painterResource(R.drawable.ic_flash_on)
-                    ImageCapture.FLASH_MODE_OFF -> painterResource(R.drawable.ic_flash_off)
-                    else -> painterResource(R.drawable.ic_flash_off)
-                }, contentDescription = "flash", tint = Color.Unspecified
-            )
-        }
-    }
+	Row(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(horizontal = 10.dp),
+		verticalAlignment = Alignment.CenterVertically
+	) {
+		IconButton(
+			modifier = Modifier
+				.height(55.dp)
+				.aspectRatio(1f), onClick = onBack
+		) {
+			Icon(
+				painter = painterResource(R.drawable.ic_back),
+				contentDescription = "back",
+				tint = Color.Unspecified
+			)
+		}
+		Spacer(
+			modifier = Modifier
+				.height(5.dp)
+				.weight(1f)
+		)
+		IconButton(
+			modifier = Modifier
+				.height(55.dp)
+				.aspectRatio(1f), onClick = {
+				if (flashMode == ImageCapture.FLASH_MODE_ON) {
+					onClickFlash(ImageCapture.FLASH_MODE_OFF)
+				} else {
+					onClickFlash(ImageCapture.FLASH_MODE_ON)
+				}
+			}) {
+			Icon(
+				painter = when (flashMode) {
+					ImageCapture.FLASH_MODE_ON -> painterResource(R.drawable.ic_flash_on)
+					ImageCapture.FLASH_MODE_OFF -> painterResource(R.drawable.ic_flash_off)
+					else -> painterResource(R.drawable.ic_flash_off)
+				}, contentDescription = "flash", tint = Color.Unspecified
+			)
+		}
+	}
 }
 
 @Composable
 fun BottomScreen(
-    capturing: Boolean = false,
-    onClickCapture: () -> Unit = {},
-    openListScan: () -> Unit = {},
+	capturing: Boolean = false,
+	onClickCapture: () -> Unit = {},
+	openListScan: () -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceAround
-    ) {
-        Box(Modifier.size(50.dp))
-        CaptureButton(enabled = !capturing, click = onClickCapture)
-        ImagesSmallView(click = openListScan)
-    }
+	Row(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(top = 5.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.SpaceAround
+	) {
+		Box(Modifier.size(50.dp))
+		CaptureButton(enabled = !capturing, click = onClickCapture)
+		ImagesSmallView(click = openListScan)
+	}
 }
 
 @Preview(showBackground = true)
 @Composable
 fun CaptureButton(
-    enabled: Boolean = true,
-    click: () -> Unit = {},
+	enabled: Boolean = true,
+	click: () -> Unit = {},
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
+	val interactionSource = remember { MutableInteractionSource() }
 
-    val clicked by interactionSource.collectIsPressedAsState()
+	val clicked by interactionSource.collectIsPressedAsState()
 
-    val delta by animateDpAsState(
-        targetValue = if (clicked) 20.dp else 0.dp,
-        animationSpec = tween(durationMillis = 220, easing = LinearEasing)
-    )
-    val alpha by animateFloatAsState(
-        targetValue = if (enabled) 1f else 0f,
-        animationSpec = tween(durationMillis = 220, easing = LinearEasing)
-    )
+	val delta by animateDpAsState(
+		targetValue = if (clicked) 20.dp else 0.dp,
+		animationSpec = tween(durationMillis = 220, easing = LinearEasing)
+	)
+	val alpha by animateFloatAsState(
+		targetValue = if (enabled) 1f else 0f,
+		animationSpec = tween(durationMillis = 220, easing = LinearEasing)
+	)
 
-    Box(
-        modifier = Modifier
-            .clickable(
-                enabled = enabled,
-                onClick = click,
-                interactionSource = interactionSource,
-                indication = null
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.capture_button),
-            contentDescription = "capture",
-            tint = Color.Unspecified
-        )
+	Box(
+		modifier = Modifier
+			.clickable(
+				enabled = enabled,
+				onClick = click,
+				interactionSource = interactionSource,
+				indication = null
+			),
+		contentAlignment = Alignment.Center
+	) {
+		Icon(
+			painter = painterResource(R.drawable.capture_button),
+			contentDescription = "capture",
+			tint = Color.Unspecified
+		)
 
-        if (!enabled) {
-            CircularProgressIndicator(
-                Modifier
-                    .alpha(1f - alpha)
-                    .size(40.dp - delta),
-                strokeCap = StrokeCap.Round,
-                strokeWidth = 3.dp,
-                color = LightBackground
-            )
-        }
-    }
+		if (!enabled) {
+			CircularProgressIndicator(
+				Modifier
+					.alpha(1f - alpha)
+					.size(40.dp - delta),
+				strokeCap = StrokeCap.Round,
+				strokeWidth = 3.dp,
+				color = LightBackground
+			)
+		}
+	}
 }
 
 @Preview(showBackground = true)
 @Composable
 fun ImagesSmallViewPreview() {
-    ImagesSmallView {}
+	ImagesSmallView {}
 }
 
 @Composable
 fun ImagesSmallView(click: () -> Unit) {
-    if (LocalInspectionMode.current) {
-        Box(modifier = Modifier.size(45.dp))
-        return
-    }
+	if (LocalInspectionMode.current) {
+		Box(modifier = Modifier.size(45.dp))
+		return
+	}
 
-    val context = LocalContext.current
-    val imageFolder = remember { context.getImageFolder() }
+	val context = LocalContext.current
+	val imageFolder = remember { context.getImageFolder() }
 
-    val images by produceState(initialValue = emptyList(), imageFolder) {
-        withContext(Dispatchers.IO) {
-            observeDirectoryChanges(imageFolder).collect { updatedFiles ->
-                value = updatedFiles
-            }
-        }
-    }
+	val images by produceState(initialValue = emptyList(), imageFolder) {
+		withContext(Dispatchers.IO) {
+			observeDirectoryChanges(imageFolder).collect { updatedFiles ->
+				value = updatedFiles
+			}
+		}
+	}
 
-    val mostRecentImage = remember(images) {
-        images.maxByOrNull(File::lastModified)
-    }
+	val mostRecentImage = remember(images) {
+		images.maxByOrNull(File::lastModified)
+	}
 
-//    if (mostRecentImage != null) {
-        Box(
-            modifier = Modifier
-                .size(45.dp)
-                .background(MaterialTheme.colorScheme.outline)
-                .clickable(enabled = true, onClick = click)
-        ) {
-            AsyncImage(
-                modifier = Modifier.fillMaxSize(),
-                model = mostRecentImage,
-                contentDescription = null,
-                contentScale = ContentScale.Crop
-            )
-            Badge(modifier = Modifier.align(Alignment.TopEnd), nr = if (mostRecentImage != null)images.size else 0)
-        }
-//    } else {
-//        Box(
-//            modifier = Modifier
-//                .size(45.dp)
-//                .background(MaterialTheme.colorScheme.outline)
-//                .clickable(enabled = true, onClick = {})
-//        )
-//    }
+	Box(
+		modifier = Modifier
+			.size(45.dp)
+			.background(MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(7.dp))
+			.clip(shape = RoundedCornerShape(7.dp))
+			.clickable(enabled = true, onClick = click)
+	) {
+		AsyncImage(
+			modifier = Modifier
+				.fillMaxSize(),
+			model = mostRecentImage,
+			contentDescription = null,
+			contentScale = ContentScale.Crop
+		)
+		Badge(
+			modifier = Modifier.align(Alignment.TopEnd),
+			nr = if (mostRecentImage != null) images.size else 0
+		)
+	}
 }

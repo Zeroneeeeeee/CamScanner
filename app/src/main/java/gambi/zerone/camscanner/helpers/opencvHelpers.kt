@@ -379,6 +379,150 @@ fun documentMat(original: Mat): Mat {
     return out
 }
 
+fun magicColorFilter(original: Mat): Mat {
+    val labImage = Mat()
+    Imgproc.cvtColor(original, labImage, Imgproc.COLOR_BGR2Lab)
+
+    val labPlanes = ArrayList<Mat>(3)
+    Core.split(labImage, labPlanes)
+    val clahe = Imgproc.createCLAHE()
+    clahe.clipLimit = 2.5
+    clahe.tilesGridSize = Size(8.0, 8.0)
+    val Dst = Mat()
+    clahe.apply(labPlanes[0], Dst)
+
+    Dst.copyTo(labPlanes[0])
+    Core.merge(labPlanes, labImage)
+
+    val claheResult = Mat()
+    Imgproc.cvtColor(labImage, claheResult, Imgproc.COLOR_Lab2BGR)
+
+    val blurred = Mat()
+    Imgproc.bilateralFilter(claheResult, blurred, 9, 75.0, 75.0)
+
+    val sharpened = Mat()
+    Core.addWeighted(claheResult, 1.5, blurred, -0.5, 0.0, sharpened)
+
+    labImage.release()
+    labPlanes.forEach { it.release() }
+    Dst.release()
+    claheResult.release()
+    blurred.release()
+
+    return sharpened
+}
+
+fun grayscaleFilter(original: Mat): Mat {
+    val gray = Mat()
+    Imgproc.cvtColor(original, gray, Imgproc.COLOR_BGR2GRAY)
+
+    val result = Mat()
+    Imgproc.adaptiveThreshold(
+        gray,
+        result,
+        255.0,
+        Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+        Imgproc.THRESH_BINARY,
+        15,
+        8.0
+    )
+
+    val bgrResult = Mat()
+    Imgproc.cvtColor(result, bgrResult, Imgproc.COLOR_GRAY2BGR)
+
+    gray.release()
+    result.release()
+
+    return bgrResult
+}
+
+fun blackAndWhiteFilter(original: Mat): Mat {
+    val gray = Mat()
+    Imgproc.cvtColor(original, gray, Imgproc.COLOR_BGR2GRAY)
+
+    val enhancedGray = Mat()
+    val (alpha, beta) = getAutoBrightnessAlphaAndBetaFromGray(gray)
+    Core.convertScaleAbs(gray, enhancedGray, alpha * 0.8, beta * 0.5)
+
+    val textMask = Mat()
+    Imgproc.threshold(
+        enhancedGray,
+        textMask,
+        0.0,
+        255.0,
+        Imgproc.THRESH_BINARY_INV + Imgproc.THRESH_OTSU
+    )
+
+    val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+    Imgproc.morphologyEx(textMask, textMask, Imgproc.MORPH_OPEN, kernel)
+
+    val result = Mat(original.size(), CvType.CV_8UC1, Scalar.all(255.0))
+
+    gray.copyTo(result, textMask)
+
+    val bgrResult = Mat()
+    Imgproc.cvtColor(result, bgrResult, Imgproc.COLOR_GRAY2BGR)
+
+    gray.release()
+    enhancedGray.release()
+    textMask.release()
+    kernel.release()
+    result.release()
+
+    return bgrResult
+}
+
+fun invertColorFilter(original: Mat): Mat {
+    val result = Mat()
+    Core.bitwise_not(original, result)
+    return result
+}
+
+fun sharpenFilter(original: Mat): Mat {
+    val result = Mat()
+    val blurred = Mat()
+    Imgproc.GaussianBlur(original, blurred, Size(0.0, 0.0), 3.0)
+
+    Core.addWeighted(original, 2.5, blurred, -1.5, 0.0, result)
+
+    blurred.release()
+
+    return result
+}
+
+fun warmToneFilter(original: Mat): Mat {
+    val inputMat = Mat()
+    if (original.channels() == 1) {
+        Imgproc.cvtColor(original, inputMat, Imgproc.COLOR_GRAY2BGR)
+    } else {
+        original.copyTo(inputMat)
+    }
+
+    val channels = ArrayList<Mat>()
+    Core.split(inputMat, channels)
+
+    if (channels.size < 3) {
+        inputMat.release()
+        return original
+    }
+
+    val b = channels[0]
+    val g = channels[1]
+    val r = channels[2]
+
+    Core.multiply(b, Scalar(0.7), b)
+
+    Core.multiply(r, Scalar(1.1), r)
+    Imgproc.threshold(r, r, 255.0, 255.0, Imgproc.THRESH_TRUNC)
+
+    val result = Mat()
+    Core.merge(channels, result)
+
+    inputMat.release()
+    channels.forEach { it.release() }
+
+    return result
+}
 
 fun unwrap(originalMat: Mat, points: List<Point>, scale: Double = 1.0): Mat {
     val (topLeft, topRight, bottomRight, bottomLeft) = points

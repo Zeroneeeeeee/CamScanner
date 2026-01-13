@@ -7,4 +7,5 @@ sealed interface Screen {
 	data object SmartScan : Screen
 	data object ListPDF : Screen
 	data class CropScan(val bitmapAndRotation: Pair<Bitmap, Int>) : Screen
+	data object ListScanned : Screen
 }

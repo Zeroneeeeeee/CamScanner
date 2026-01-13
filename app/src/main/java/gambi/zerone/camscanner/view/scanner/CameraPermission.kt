@@ -30,7 +30,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import common.libs.compose.functions.openAppSettings
-import gambi.zerone.camscanner.app.PermissionPrefs
+import gambi.zerone.camscanner.app.SharedPrefs
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -39,7 +39,7 @@ fun HandleCameraPermission(
 	content: @Composable (requestPermission: () -> Unit) -> Unit
 ) {
 	val context = LocalContext.current
-	val permissionPrefs = remember { PermissionPrefs(context) }
+	val sharedPrefs = remember { SharedPrefs(context) }
 	var showPermissionDialog by rememberSaveable { mutableStateOf(false) }
 
 	val cameraPermissionState = rememberPermissionState(
@@ -48,8 +48,8 @@ fun HandleCameraPermission(
 		if (isGranted) {
 			onPermissionGranted()
 		} else {
-			permissionPrefs.incrementCameraDeniedCount()
-			Log.d("Namzzz", ": HomeScreen denied ${permissionPrefs.cameraDeniedCount}")
+			sharedPrefs.incrementCameraDeniedCount()
+			Log.d("Namzzz", ": HomeScreen denied ${sharedPrefs.cameraDeniedCount}")
 		}
 		showPermissionDialog = false
 	}
@@ -65,7 +65,7 @@ fun HandleCameraPermission(
 		val rationaleText: String
 		val buttonText: String
 		val onClickAction: () -> Unit
-		val deniedCount = permissionPrefs.cameraDeniedCount
+		val deniedCount = sharedPrefs.cameraDeniedCount
 
 		if (deniedCount >= 2) {
 			rationaleText = "Quyền truy cập camera đã bị từ chối vĩnh viễn. Vui lòng vào Cài đặt của ứng dụng để cấp quyền thủ công."
