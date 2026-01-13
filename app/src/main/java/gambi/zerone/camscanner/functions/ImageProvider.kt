@@ -7,6 +7,7 @@ import android.view.SurfaceView
 import android.view.View
 import androidx.camera.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -81,8 +82,8 @@ open class ImageProviderFromMat(scope: CoroutineScope) : BaseImageProvider() {
 		Channel<Pair<Mat, Int>>(capacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
 	override val bmpFlow: SharedFlow<Pair<Bitmap, Int>> = matChannel.receiveAsFlow().map {
-			it.first.toBitmap() to it.second
-		}.buffer(capacity = 0, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+		it.first.toBitmap() to it.second
+	}.buffer(capacity = 0, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 		.flowOn(Dispatchers.Default).shareIn(scope, SharingStarted.WhileSubscribed(), replay = 1)
 
 	fun emit(mat: Mat) {
@@ -144,6 +145,47 @@ fun ShowImage(
 				filterQuality = if (currentFilter) FilterQuality.High else FilterQuality.None
 			)
 		}
+	}
+}
+
+@Composable
+fun AndroidImage(
+	modifier: Modifier = Modifier,
+	file: File?,
+	processing: Boolean = false,
+	update: Int = 0
+) {
+	val context = LocalContext.current
+	var bitmapAndRotation by remember { mutableStateOf<Pair<Bitmap, Int>?>(null) }
+	var size by remember { mutableStateOf<IntSize?>(null) }
+	val ref = remember {
+		object : View(context) {
+			override fun onDraw(canvas: Canvas) {
+				val bitmap = bitmapAndRotation?.first ?: return
+				fullDraw(
+					canvas,
+					this,
+					bitmap,
+					bitmapAndRotation?.second ?: 0,
+					true
+				)
+			}
+		}
+	}
+
+	AndroidView(modifier = modifier
+		.fillMaxSize()
+		.onSizeChanged { size = it }, factory = { ref })
+
+	LaunchedEffect(file, size, processing, update) {
+		if (processing) return@LaunchedEffect
+		if (file?.exists() != true) return@LaunchedEffect
+
+		val size = size
+		if (size == null || size.height == 0 || size.width == 0) return@LaunchedEffect
+		val temp = file.toBitmap(max(size.height, ref.height))
+		bitmapAndRotation = temp
+		ref.postInvalidate()
 	}
 }
 
@@ -218,15 +260,15 @@ fun ImagePlayer(
 		if (surfaceCreated) {
 
 			imageProvider.bmpFlow.onEach { (bitmap, rotation) ->
-					val canvas = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-						ref.holder.lockHardwareCanvas() ?: return@onEach
-					} else {
-						ref.holder.lockCanvas() ?: return@onEach
-					}
+				val canvas = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+					ref.holder.lockHardwareCanvas() ?: return@onEach
+				} else {
+					ref.holder.lockCanvas() ?: return@onEach
+				}
 
-					fullDraw(canvas, ref, bitmap, rotation)
-					ref.holder.unlockCanvasAndPost(canvas)
-				}.flowOn(Dispatchers.Default).launchIn(this)
+				fullDraw(canvas, ref, bitmap, rotation)
+				ref.holder.unlockCanvasAndPost(canvas)
+			}.flowOn(Dispatchers.Default).launchIn(this)
 		}
 	}
 
@@ -247,16 +289,16 @@ fun Canvas.drawScaledBitmap(
 
 	drawBitmap(
 		bitmap, Rect(0, 0, bitmap.width, bitmap.height), Rect(
-		((width - mScale * bitmap.width) / 2).toInt(),
-		((height - mScale * bitmap.height) / 2).toInt(),
-		((width - mScale * bitmap.width) / 2 + mScale * bitmap.width).toInt(),
-		((height - mScale * bitmap.height) / 2 + mScale * bitmap.height).toInt()
-	), if (filter) Paint().apply {
-		isAntiAlias = true
-		isFilterBitmap = true
-		isDither = true
-	}
-	else null)
+			((width - mScale * bitmap.width) / 2).toInt(),
+			((height - mScale * bitmap.height) / 2).toInt(),
+			((width - mScale * bitmap.width) / 2 + mScale * bitmap.width).toInt(),
+			((height - mScale * bitmap.height) / 2 + mScale * bitmap.height).toInt()
+		), if (filter) Paint().apply {
+			isAntiAlias = true
+			isFilterBitmap = true
+			isDither = true
+		}
+		else null)
 }
 
 

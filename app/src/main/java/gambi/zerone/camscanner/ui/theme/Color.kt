@@ -18,3 +18,4 @@ val BackgroundSecond = Color(0xFFF4F3F9) //#F4F3F9
 val BlueViolet = Color(0xFF4E52D9) //#4E52D9
 val NeutralGray = Color(0xFFAEAEAE) //#AEAEAE
 val DarkGray = Color(0xFF5D5D5D) //#5D5D5D
+val GoldenYellow = Color(0xFFFFCA10) //#FFCA10

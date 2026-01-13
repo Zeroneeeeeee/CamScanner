@@ -1,15 +1,19 @@
 package gambi.zerone.camscanner.helpers
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.net.Uri
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.geometry.Offset
+import androidx.core.content.FileProvider
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
@@ -20,6 +24,12 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
+import com.tom_roush.pdfbox.io.IOUtils
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
+import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
 import gambi.zerone.camscanner.entity.ImageBounds
 import gambi.zerone.camscanner.entity.ResizedDimensions
 import kotlinx.coroutines.yield
@@ -480,4 +490,76 @@ suspend fun File.getOrCreateEffectImageFile(context: Context, mode: Int): File {
 
 	}
 	return file
+}
+
+suspend fun generatePDF(context: Context, mode: Int, folderToSave: File, images: List<File>, fileName: String): File? {
+
+	val pdfFile = File(folderToSave, fileName)
+	PDDocument().use { document ->
+
+		val files = images.map {
+			it.getOrCreateEffectImageFile(context, mode)
+		}
+
+		files.forEach { file ->
+
+			val bounds = file.getImageBounds()
+			val rotation = bounds.rotation
+
+			val a4LikeBounds = bounds.clampA4()
+
+			file.inputStream()
+				.use { fileStream ->
+					val image = JPEGFactory.createFromStream(document, fileStream)
+
+					val page = PDPage(
+						PDRectangle(
+							a4LikeBounds.originalWidth.toFloat(),
+							a4LikeBounds.originalHeight.toFloat()
+						)
+					)
+					document.addPage(page)
+					page.rotation = rotation
+
+					PDPageContentStream(document, page).use { contentStream ->
+						contentStream.drawImage(
+							image,
+							0f,
+							0f,
+							a4LikeBounds.originalWidth.toFloat(),
+							a4LikeBounds.originalHeight.toFloat()
+						)
+					}
+				}
+		}
+
+		val created = pdfFile.createNewFile()
+		if (!created) {
+			return null
+		}
+
+		document.save(pdfFile)
+		return pdfFile
+	}
+}
+
+fun Context.saveToExternal(uri: Uri, file: File) {
+	contentResolver.openOutputStream(uri)?.use { outStream ->
+		file.inputStream().use { inStream ->
+			IOUtils.copy(inStream, outStream)
+		}
+	}
+}
+fun Context.fileReturn(file: File) {
+	val uri = fileProvider(file)
+	val intent = Intent()
+	intent.data = uri
+	intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+	(this as Activity).apply {
+		setResult(Activity.RESULT_OK, intent)
+		finish()
+	}
+}
+fun Context.fileProvider(file: File): Uri {
+	return FileProvider.getUriForFile(this, "$packageName.provider", file)
 }
