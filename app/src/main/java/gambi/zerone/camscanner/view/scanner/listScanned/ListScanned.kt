@@ -1,5 +1,14 @@
 package gambi.zerone.camscanner.view.scanner.listScanned
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,14 +47,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil.ImageLoader
+import common.libs.compose.extensions.currentDateTimeWithFormat
+import common.libs.compose.extensions.handlerFunction
 import common.libs.compose.toast.CToastConfiguration
 import common.libs.compose.toast.CToastHost
 import common.libs.compose.toast.CToastState
@@ -53,7 +62,12 @@ import common.libs.compose.toast.CToastType
 import common.libs.compose.toast.LocalCToastConfig
 import gambi.zerone.camscanner.R
 import gambi.zerone.camscanner.app.SharedPrefs
+import gambi.zerone.camscanner.functions.AndroidImage
+import gambi.zerone.camscanner.functions.LocalIsPick
+import gambi.zerone.camscanner.globals.Constants
 import gambi.zerone.camscanner.helpers.DisableOverscroll
+import gambi.zerone.camscanner.helpers.fileReturn
+import gambi.zerone.camscanner.helpers.generatePDF
 import gambi.zerone.camscanner.helpers.getEffectImageFolder
 import gambi.zerone.camscanner.helpers.getImageFolder
 import gambi.zerone.camscanner.helpers.getOrCreateEffectImageFile
@@ -61,10 +75,13 @@ import gambi.zerone.camscanner.helpers.getPdfFolder
 import gambi.zerone.camscanner.helpers.getUnwrappedImageFolder
 import gambi.zerone.camscanner.helpers.observeDirectoryChanges
 import gambi.zerone.camscanner.helpers.rotate90Degrees
+import gambi.zerone.camscanner.helpers.saveToExternal
+import gambi.zerone.camscanner.view.components.DeleteButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -76,6 +93,7 @@ fun ListScanned(
 	onBack: () -> Unit
 ) {
 	val context = LocalContext.current
+	val isPick = LocalIsPick.current
 	var loading by remember { mutableStateOf(false) }
 	val cToastState = remember { CToastState() }
 	val scope = rememberCoroutineScope()
@@ -83,6 +101,7 @@ fun ListScanned(
 	var wantToDeleteAll by remember { mutableStateOf(false) }
 
 	var changingEffect by remember { mutableStateOf(false) }
+	var showFilterScan by remember { mutableStateOf(false) }
 	var effectSelected by remember {
 		val saved = sharedPrefs.effectSelected
 		mutableIntStateOf(saved)
@@ -128,6 +147,49 @@ fun ListScanned(
 		sortedImages.getOrNull(pagerState.currentPage)
 	}
 
+	val savePDF: (uri: Uri?, fileName: String) -> Unit = remember {
+		{ uri, fileName ->
+			loading = true
+			scope.launch(Dispatchers.Default) {
+				try {
+					activeImageEffectProcessors.values.joinAll()
+
+					val pdfFile =
+						generatePDF(context, effectSelected, pdfFolder, sortedImages, fileName) ?: return@launch
+
+					originalImages.forEach(File::delete)
+					unwrappedImages.forEach(File::delete)
+					effectFolder.listFiles()!!.forEach(File::delete)
+					cToastState.setAndShow(
+						message = "OK",
+						type = CToastType.SUCCESS,
+					)
+					if (uri != null) {
+						context.saveToExternal(uri, pdfFile)
+						onBack()
+					} else if (isPick) {
+						context.fileReturn(pdfFile)
+					} else {
+						onBack()
+					}
+				} finally {
+					loading = false
+				}
+			}
+		}
+	}
+
+	val savePdfAndToExternalLauncher =
+		rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) {
+			if (it.resultCode == Activity.RESULT_OK) {
+				val uri = it.data?.data ?: return@rememberLauncherForActivityResult
+				val fileName =
+					it.data?.getStringExtra(Intent.EXTRA_TITLE)
+						?: "${"yyyy-MM-dd_EEEE_HH-mm-ss".currentDateTimeWithFormat()}.pdf"
+				savePDF(uri, fileName)
+			}
+		}
+
 	//View screen
 
 	CompositionLocalProvider(LocalCToastConfig provides CToastConfiguration()) {
@@ -142,7 +204,17 @@ fun ListScanned(
 						.padding(horizontal = 16.dp),
 					verticalAlignment = Alignment.CenterVertically
 				) {
-					IconButton(onClick = onBack) {
+					IconButton(onClick = {
+						if (changingEffect) changingEffect = false
+						else {
+							if (showFilterScan) {
+								showFilterScan = false
+								handlerFunction(300) {
+									changingEffect = false
+								}
+							} else onBack()
+						}
+					}) {
 						Icon(
 							painter = painterResource(R.drawable.ic_back),
 							contentDescription = "Back",
@@ -155,7 +227,14 @@ fun ListScanned(
 							.weight(1f)
 					)
 					Button(onClick = {
-
+						val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+						intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+						intent.putExtra(
+							Intent.EXTRA_TITLE,
+							"${"yyyy-MM-dd_EEEE_HH-mm-ss".currentDateTimeWithFormat()}.pdf"
+						)
+						intent.type = "application/pdf"
+						savePdfAndToExternalLauncher.launch(intent)
 					}) { Text(stringResource(R.string.savepdf_in_folder), fontSize = 13.sp) }
 				}
 
@@ -208,28 +287,16 @@ fun ListScanned(
 											delay(1000)
 										}
 									}
-//									imageLoading = false
+									imageLoading = false
 								} finally {
 									activeImageEffectProcessors.remove(imageFile.name)
 								}
 							}
-							val imageRequest = remember(file, changedRotation) {
-								file?.let {
-									ImageRequest.Builder(context)
-										.data(it)
-										.crossfade(true)
-										.memoryCacheKey("${it.path}:${it.lastModified()}:${changedRotation}")
-										.diskCacheKey("${it.path}:${it.lastModified()}:${changedRotation}")
-										.build()
-								}
-							}
-							AsyncImage(
-								modifier = Modifier.fillMaxSize(),
-								model = imageRequest,
-								contentDescription = null,
-								contentScale = ContentScale.Fit,
-								onSuccess = { imageLoading = false },
-								onError = { imageLoading = false }
+
+							AndroidImage(
+								file = file,
+								processing = loading or imageLoading,
+								update = changedRotation + effectSelected
 							)
 
 							if (file == null || imageLoading) Box(
@@ -237,6 +304,23 @@ fun ListScanned(
 								contentAlignment = Alignment.Center
 							) {
 								CircularProgressIndicator()
+							}
+							DeleteButton {
+								try {
+									imageFile.delete()
+									File(imageFolder, imageFile.name).delete()
+									File(effectFolder, imageFile.name).delete()
+								} catch (e: Exception) {
+									scope.launch {
+										cToastState.setAndShow(
+											message = "Delete failed: ${e.message}",
+											type = CToastType.ERROR
+										)
+									}
+								}
+								if (unwrappedFolder.listFiles()!!.isEmpty()) {
+									onBack()
+								}
 							}
 						}
 					}
@@ -254,68 +338,82 @@ fun ListScanned(
 				Spacer(Modifier.size(55.dp))
 			}
 
-			BottomFunctions(
+			AnimatedVisibility(
 				modifier = Modifier
 					.fillMaxWidth()
-					.padding(horizontal = 20.dp)
-					.background(
-						color = MaterialTheme.colorScheme.primary,
-						shape = RoundedCornerShape(15.dp)
-					)
 					.align(Alignment.BottomCenter),
-				clickChangeEffect = {
-					if (!changingEffect) changingEffect = true
-				},
-				clickRotate = {
-					if (currentPage != null && currentPage.exists() && !loading) {
-						loading = true
-						scope.launch(Dispatchers.Default) {
-							activeImageEffectProcessors[currentPage.name]?.join()
-							currentPage.rotate90Degrees()
-							File(effectFolder, currentPage.name).rotate90Degrees()
-							changedRotation++
-							loading = false
+				visible = !changingEffect,
+				enter = slideInVertically(initialOffsetY = { it }),
+				exit = slideOutVertically(targetOffsetY = { it })
+			) {
+				BottomFunctions(
+					modifier = Modifier
+						.fillMaxWidth()
+						.padding(horizontal = 20.dp)
+						.background(
+							color = MaterialTheme.colorScheme.primary,
+							shape = RoundedCornerShape(15.dp)
+						),
+					clickChangeEffect = {
+						if (!changingEffect) {
+							changingEffect = true
+							handlerFunction(300) {
+								showFilterScan = true
+							}
 						}
-					}
-				},
-				clickDelete = {
-					val imageDelete = sortedImages.getOrNull(pagerState.currentPage)
-					imageDelete?.let { imageDelete ->
-						scope.launch {
+					},
+					clickRotate = {
+						if (currentPage != null && currentPage.exists() && !loading) {
 							loading = true
-							withContext(Dispatchers.IO) {
-								try {
-									val originalFile = File(imageFolder, imageDelete.name)
-									val effectFile = File(effectFolder, imageDelete.name)
-//									val unwrappedFile = imageDelete
-
-									if (originalFile.exists()) originalFile.delete()
-									if (effectFile.exists()) effectFile.delete()
-									if (imageDelete.exists()) imageDelete.delete()
-//									if (unwrappedFile.exists()) unwrappedFile.delete()
-
-								} catch (e: Exception) {
-									cToastState.setAndShow(
-										message = "Delete failed: ${e.message}",
-										type = CToastType.ERROR
-									)
-								}
-							}
-							loading = false
-							if (unwrappedFolder.listFiles()?.isEmpty() == true) {
-								onBack()
+							scope.launch(Dispatchers.Default) {
+								activeImageEffectProcessors[currentPage.name]?.join()
+								currentPage.rotate90Degrees()
+								File(effectFolder, currentPage.name).rotate90Degrees()
+								changedRotation++
+								loading = false
 							}
 						}
-					} ?: run {
-						scope.launch {
-							cToastState.setAndShow(
-								message = "No image selected to delete",
-								type = CToastType.WARNING
-							)
+					},
+					clickDeleteAll = { wantToDeleteAll = true })
+			}
+
+			AnimatedVisibility(
+				modifier = Modifier
+					.fillMaxWidth()
+					.align(Alignment.BottomCenter),
+				visible = showFilterScan,
+				enter = slideInVertically(initialOffsetY = { it }),
+				exit = slideOutVertically(targetOffsetY = { it })
+			) {
+				val currentFilter = remember(effectSelected) {
+					Constants.FilterList.find { it.mode == effectSelected }
+						?: Constants.FilterList[2]
+				}
+				FilterScan(
+					filtersSelected = currentFilter,
+					onFilterClick = { newFilter ->
+						if (effectSelected != newFilter.mode) {
+							scope.launch(Dispatchers.Default) {
+								val activeJobs = activeImageEffectProcessors.values.toList()
+								activeJobs.forEach(Job::cancel)
+								activeJobs.joinAll()
+								val imageLoader = ImageLoader(context)
+								imageLoader.memoryCache?.clear()
+								effectFolder.listFiles()!!.forEach(File::delete)
+
+								effectSelected = newFilter.mode
+								sharedPrefs.effectSelected = newFilter.mode
+							}
+						}
+					},
+					accept = {
+						showFilterScan = false
+						handlerFunction(300) {
+							changingEffect = false
 						}
 					}
-				},
-				clickDeleteAll = { wantToDeleteAll = true })
+				)
+			}
 		}
 
 		if (wantToDeleteAll) {
@@ -342,6 +440,15 @@ fun ListScanned(
 
 		CToastHost(cToastState, Modifier.systemBarsPadding())
 	}
+
+	BackHandler {
+		if (showFilterScan) {
+			showFilterScan = false
+			handlerFunction(300) {
+				changingEffect = false
+			}
+		} else onBack()
+	}
 }
 
 @Composable
@@ -349,7 +456,7 @@ private fun BottomFunctions(
 	modifier: Modifier = Modifier,
 	clickChangeEffect: () -> Unit = {},
 	clickRotate: () -> Unit,
-	clickDelete: () -> Unit,
+//	clickDelete: () -> Unit,
 	clickDeleteAll: () -> Unit
 ) {
 	Row(
@@ -373,14 +480,14 @@ private fun BottomFunctions(
 				tint = Color.White
 			)
 		}
-		IconButton(onClick = clickDelete) {
-			Icon(
-				modifier = Modifier.size(24.dp),
-				painter = painterResource(R.drawable.crop_delete),
-				contentDescription = "Delete",
-				tint = Color.White
-			)
-		}
+//		IconButton(onClick = clickDelete) {
+//			Icon(
+//				modifier = Modifier.size(24.dp),
+//				painter = painterResource(R.drawable.crop_delete),
+//				contentDescription = "Delete",
+//				tint = Color.White
+//			)
+//		}
 		IconButton(onClick = clickDeleteAll) {
 			Icon(
 				modifier = Modifier.size(24.dp),
