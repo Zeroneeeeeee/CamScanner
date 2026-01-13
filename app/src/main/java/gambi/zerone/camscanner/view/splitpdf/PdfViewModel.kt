@@ -11,19 +11,25 @@ class PdfViewModel : ViewModel() {
 
     suspend fun loadBitmapIfNeeded(
         pageIndex: Int,
+        maxWidth: Int = 360,
+        maxHeight: Int = 640,
         converter: PdfBitmapConverter
     ) {
         if (_bitmapCache.containsKey(pageIndex)) return
 
         val bitmap = converter.renderPage(
             pageIndex,
-            maxWidth = 360,
-            maxHeight = 640
+            maxWidth = maxWidth,
+            maxHeight = maxHeight
         )
 
         if (bitmap != null) {
             _bitmapCache[pageIndex] = bitmap
         }
+    }
+
+    fun clearCache() {
+        _bitmapCache.clear()
     }
 }
 

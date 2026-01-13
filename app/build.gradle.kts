@@ -59,6 +59,8 @@ dependencies {
 // To recognize Korean script
     implementation("com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1")
 
+    implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
+
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     implementation(libs.androidx.navigation3.runtime)

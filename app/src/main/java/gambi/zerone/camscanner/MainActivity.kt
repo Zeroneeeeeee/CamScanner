@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import common.libs.compose.extensions.SetNavigationBarContentColor
 import common.libs.compose.extensions.SetStatusBarContentColor
 import gambi.zerone.camscanner.ui.theme.CamScannerTheme
@@ -17,6 +18,7 @@ import gambi.zerone.camscanner.ui.theme.LightBackground
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PDFBoxResourceLoader.init(this)
         enableEdgeToEdge()
         setContent {
             window.SetStatusBarContentColor(MaterialTheme.colorScheme.background)

@@ -6,12 +6,13 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,12 +53,20 @@ import gambi.zerone.camscanner.FunctionItem
 import gambi.zerone.camscanner.R
 
 @Composable
-fun FileScreen(modifier: Modifier = Modifier) {
-    Content()
+fun FileScreen(modifier: Modifier = Modifier, onItemClick: (Uri) -> Unit = {}) {
+    Content(
+        onItemClick = onItemClick
+    )
 }
 
 @Composable
-fun Content(modifier: Modifier = Modifier) {
+fun Content(
+    modifier: Modifier = Modifier,
+    onItemClick: (Uri) -> Unit = {},
+    onImportFileClick: () -> Unit = {},
+    onImportImageClick: () -> Unit = {},
+    onCreateFolderClick: () -> Unit = {}
+) {
     Column(modifier = modifier.fillMaxSize()) {
         Spacer(Modifier.size(32.dp))
         Row(
@@ -68,29 +77,32 @@ fun Content(modifier: Modifier = Modifier) {
                 icon = R.drawable.ic_import_file,
                 functionName = "Import Files",
                 iconTint = Color(0xFFFFCA10),
-                iconBackground = Color(0xFFFFF7E2)
+                iconBackground = Color(0xFFFFF7E2),
+                onClick = onImportFileClick
             )
             FunctionItem(
                 icon = R.drawable.ic_import_image,
                 functionName = "Import Images",
                 iconTint = Color(0xFF2B85FF),
-                iconBackground = Color(0xFFEBF3FF)
+                iconBackground = Color(0xFFEBF3FF),
+                onClick = onImportImageClick
             )
             FunctionItem(
                 icon = R.drawable.ic_create_folder_outlined,
                 functionName = "Create Folder",
                 iconTint = Color(0xFF42AD29),
-                iconBackground = Color(0xFFEBFFE6)
+                iconBackground = Color(0xFFEBFFE6),
+                onClick = onCreateFolderClick
             )
         }
         Spacer(Modifier.size(32.dp))
-        PdfListScreen()
+        PdfListScreen(onItemClick = onItemClick)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun PdfListScreen(viewModel: FilesViewModel = viewModel()) {
+fun PdfListScreen(viewModel: FilesViewModel = viewModel(), onItemClick: (Uri) -> Unit = {}) {
     val context = LocalContext.current
     var isPermissionGranted by remember {
         mutableStateOf(checkPermissionAllFile(context))
@@ -115,7 +127,7 @@ fun PdfListScreen(viewModel: FilesViewModel = viewModel()) {
                 Text("Không tìm thấy file PDF", Modifier.align(Alignment.Center))
             } else {
                 LazyColumn {
-                    items(viewModel.pdfFiles) { PdfItem(it) }
+                    items(viewModel.pdfFiles) { PdfItem(pdf = it, onClick = onItemClick) }
                 }
             }
         } else {
@@ -146,19 +158,22 @@ fun PermissionRequestUI(text: String, onGrantClick: () -> Unit) {
 @Preview(showBackground = true)
 @Composable
 fun PdfItem(
+    modifier: Modifier = Modifier,
     pdf: PdfFile = PdfFile(
         "package:com.example.app".toUri(),
         "Sample PDF",
         1024L,
         System.currentTimeMillis()
-    )
+    ),
+    onClick: (Uri) -> Unit = {}
 ) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = Color.White
         ),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .clickable { onClick(pdf.uri) }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
@@ -179,7 +194,7 @@ fun PdfItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(modifier = Modifier.fillMaxWidth()){
+                Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "${pdf.dateAdded.formatDate()} | ${pdf.dateAdded.formatTime()} | ${pdf.size.formatFileSize()}",
                         style = MaterialTheme.typography.bodySmall,
