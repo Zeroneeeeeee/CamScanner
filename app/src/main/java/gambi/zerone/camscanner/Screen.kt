@@ -11,5 +11,5 @@ sealed interface Screen {
     data object SplitPDF: Screen
     data class SplitPreview(val name: Uri, val splitPage:List<Int>): Screen
     data object MergePDF: Screen
-
+    data object ListScanned: Screen
 }

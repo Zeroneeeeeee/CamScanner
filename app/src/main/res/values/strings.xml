@@ -9,6 +9,10 @@
     <string name="split_pdf">Split PDF</string>
     <string name="sign">Sign</string>
     <string name="translate_pdf">Translate PDF</string>
+    <string name="savepdf_in_folder">Save PDF in Folder</string>
+    <string name="delete_all_scans">Delete all scans</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
     <string name="search">Search</string>
     <string name="home">Home</string>
     <string name="files">Files</string>

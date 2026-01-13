@@ -50,6 +50,8 @@ import gambi.zerone.camscanner.view.files.FileScreen
 import gambi.zerone.camscanner.view.mergepdf.MergePDFScreen
 import gambi.zerone.camscanner.view.scanner.CameraScan
 import gambi.zerone.camscanner.view.scanner.CropScanned
+import gambi.zerone.camscanner.view.scanner.HandleCameraPermission
+import gambi.zerone.camscanner.view.scanner.listScanned.ListScanned
 import gambi.zerone.camscanner.view.splitpdf.SplitPDFScreen
 import gambi.zerone.camscanner.view.splitpdf.SplitPreview
 import kotlinx.coroutines.Deferred
@@ -66,253 +68,261 @@ import java.util.Date
 
 @Composable
 fun Context.Navigation(
-    modifier: Modifier = Modifier,
-    onTopScreen: (screen: Screen) -> Unit = {}
+	modifier: Modifier = Modifier,
+	onTopScreen: (screen: Screen) -> Unit = {}
 ) {
-    var bitmapAndRotation by remember {
-        mutableStateOf<Pair<Bitmap, Int>?>(null)
-    }
-    var ocSaveTask by remember { mutableStateOf<Deferred<File>?>(null) }
-    val scope = rememberCoroutineScope()
-    val tempFolder = remember { tempFolder() }
-    val originalImageFolder = remember { getImageFolder() }
-    val unwrappedImageFolder = remember { getUnwrappedImageFolder() }
+	var bitmapAndRotation by remember {
+		mutableStateOf<Pair<Bitmap, Int>?>(null)
+	}
+	var ocSaveTask by remember { mutableStateOf<Deferred<File>?>(null) }
+	val scope = rememberCoroutineScope()
+	val tempFolder = remember { tempFolder() }
+	val originalImageFolder = remember { getImageFolder() }
+	val unwrappedImageFolder = remember { getUnwrappedImageFolder() }
 
-    val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
-    var selectedItem by remember { mutableIntStateOf(0) }
-    val showBottomBar by remember {
-        derivedStateOf {
-            backStack.lastOrNull() == Screen.Home ||
-                    backStack.lastOrNull() == Screen.ListPDF
-        }
-    }
+	val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
+	var selectedItem by remember { mutableIntStateOf(0) }
+	val showBottomBar by remember {
+		derivedStateOf {
+			backStack.lastOrNull() == Screen.Home ||
+					backStack.lastOrNull() == Screen.ListPDF
+		}
+	}
 
-    LaunchedEffect(backStack) {
-        snapshotFlow { backStack.lastOrNull() }
-            .distinctUntilChanged()
-            .map { it ?: Screen.Home }
-            .collect { topScreen -> onTopScreen(topScreen) }
-    }
+	LaunchedEffect(backStack) {
+		snapshotFlow { backStack.lastOrNull() }
+			.distinctUntilChanged()
+			.map { it ?: Screen.Home }
+			.collect { topScreen -> onTopScreen(topScreen) }
+	}
 
-    Scaffold(
-        bottomBar = {
-            if (showBottomBar) {
-                CutoutBottomAppBar(modifier = Modifier.navigationBarsPadding()) {
-                    NavItem(
-                        icon = R.drawable.ic_home_outlined,
-                        filledIcon = R.drawable.ic_home_filled,
-                        title = stringResource(
-                            R.string.home
-                        ),
-                        onSelected = {
-                            selectedItem = 0
-                            backStack.clear()
-                            backStack.add(Screen.Home)
-                        },
-                        isSelected = selectedItem == 0,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NavItem(
-                        icon = R.drawable.ic_files_outlined,
-                        filledIcon = R.drawable.ic_files_filled,
-                        title = stringResource(
-                            R.string.files
-                        ),
-                        onSelected = {
-                            selectedItem = 1
-                            backStack.clear()
-                            backStack.add(Screen.ListPDF)
-                        },
-                        isSelected = selectedItem == 1,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier.width(64.dp))
-                    NavItem(
-                        icon = R.drawable.ic_tool_outlined,
-                        filledIcon = R.drawable.ic_tool_filled,
-                        title = stringResource(
-                            R.string.tools
-                        ),
-                        onSelected = { selectedItem = 2 },
-                        isSelected = selectedItem == 2,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NavItem(
-                        icon = R.drawable.ic_setting_outlined,
-                        filledIcon = R.drawable.ic_setting_filled,
-                        title = stringResource(
-                            R.string.settings
-                        ),
-                        onSelected = { selectedItem = 3 },
-                        isSelected = selectedItem == 3,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        },
-        floatingActionButton = {
-            if (showBottomBar) {
-                FloatingActionButton(
-                    onClick = { /*TODO*/ },
-                    containerColor = Color.White,
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .offset(y = 48.dp)
-                        .background(Color(0xFFA4ABF4).copy(alpha = 0.15f), CircleShape)
-                        .padding(8.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_camera_filled),
-                        contentDescription = "Camera",
-                        tint = Color.Unspecified
-                    )
-                }
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center
-    ) { innerPadding ->
-        NavDisplay(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            backStack = backStack,
-            onBack = {
-                backStack.removeLastOrNull()
-            },
-            entryProvider = entryProvider {
-                entry<Screen.Home> {
-                    HomeScreen(
-                        modifier = modifier,
-                        toSmartScan = { backStack.add(Screen.SmartScan) },
-                        imageToPdf = { backStack.add(Screen.ListPDF) },
-                        splitPdf = { backStack.add(Screen.SplitPDF) },
-                        mergePdf = { backStack.add(Screen.MergePDF) }
-                    )
-                }
-                entry<Screen.SmartScan> {
-                    CameraScan(
-                        modifier = modifier,
-                        resultScan = {
-                            bitmapAndRotation = it
-                            ocSaveTask = scope.async(Dispatchers.IO) {
-                                val tempFile = File(tempFolder, Constants.TEMP_IMAGE)
-                                tempFile.saveJPEG(
-                                    bitmap = it.first,
-                                    quality = 100,
-                                    rotation = it.second
-                                )
-                                tempFile
-                            }
-                            backStack.add(Screen.CropScan(it))
-                        },
-                        onBack = {
-                            backStack.removeLastOrNull()
-                            bitmapAndRotation = null
-                            ocSaveTask?.cancel()
-                            ocSaveTask = null
-                        })
-                }
-                entry<Screen.CropScan> { (resultScanned) ->
-                    CropScanned(
-                        modifier = modifier.fillMaxSize(),
-                        resultScanned = resultScanned,
-                        onBack = { backStack.removeLastOrNull() },
-                        setNewPoints = { newPoints ->
-                            if (bitmapAndRotation == null) {
-                                backStack.removeLastOrNull()
-                                return@CropScanned
-                            }
-                            scope.launch(Dispatchers.IO) {
-                                val date = Date().time
+	Scaffold(
+		bottomBar = {
+			if (showBottomBar) {
+				CutoutBottomAppBar(modifier = Modifier.navigationBarsPadding()) {
+					NavItem(
+						icon = R.drawable.ic_home_outlined,
+						filledIcon = R.drawable.ic_home_filled,
+						title = stringResource(
+							R.string.home
+						),
+						onSelected = {
+							selectedItem = 0
+							backStack.clear()
+							backStack.add(Screen.Home)
+						},
+						isSelected = selectedItem == 0,
+						modifier = Modifier.weight(1f)
+					)
+					NavItem(
+						icon = R.drawable.ic_files_outlined,
+						filledIcon = R.drawable.ic_files_filled,
+						title = stringResource(
+							R.string.files
+						),
+						onSelected = {
+							selectedItem = 1
+							backStack.clear()
+							backStack.add(Screen.ListPDF)
+						},
+						isSelected = selectedItem == 1,
+						modifier = Modifier.weight(1f)
+					)
+					Spacer(modifier.width(64.dp))
+					NavItem(
+						icon = R.drawable.ic_tool_outlined,
+						filledIcon = R.drawable.ic_tool_filled,
+						title = stringResource(
+							R.string.tools
+						),
+						onSelected = { selectedItem = 2 },
+						isSelected = selectedItem == 2,
+						modifier = Modifier.weight(1f)
+					)
+					NavItem(
+						icon = R.drawable.ic_setting_outlined,
+						filledIcon = R.drawable.ic_setting_filled,
+						title = stringResource(
+							R.string.settings
+						),
+						onSelected = { selectedItem = 3 },
+						isSelected = selectedItem == 3,
+						modifier = Modifier.weight(1f)
+					)
+				}
+			}
+		},
+		floatingActionButton = {
+			if (showBottomBar) {
+				HandleCameraPermission(onPermissionGranted = { backStack.add(Screen.SmartScan) }) { requestPermissionCamera ->
+					FloatingActionButton(
+						onClick = requestPermissionCamera,
+						containerColor = Color.White,
+						shape = CircleShape,
+						modifier = Modifier
+							.size(64.dp)
+							.offset(y = 48.dp)
+							.background(Color(0xFFA4ABF4).copy(alpha = 0.15f), CircleShape)
+							.padding(8.dp)
+					) {
+						Icon(
+							painter = painterResource(R.drawable.ic_camera_filled),
+							contentDescription = "Camera",
+							tint = Color.Unspecified
+						)
+					}
+				}
+			}
+		},
+		floatingActionButtonPosition = FabPosition.Center
+	) { innerPadding ->
+		NavDisplay(
+			modifier = modifier
+				.fillMaxSize()
+				.padding(innerPadding),
+			backStack = backStack,
+			onBack = {
+				backStack.removeLastOrNull()
+			},
+			entryProvider = entryProvider {
+				entry<Screen.Home> {
+					HomeScreen(
+						modifier = modifier,
+						toSmartScan = { backStack.add(Screen.SmartScan) },
+						imageToPdf = { backStack.add(Screen.ListPDF) },
+						splitPdf = { backStack.add(Screen.SplitPDF) },
+						mergePdf = { backStack.add(Screen.MergePDF) }
+					)
+				}
+				entry<Screen.SmartScan> {
+					CameraScan(
+						modifier = modifier,
+						resultScan = {
+							bitmapAndRotation = it
+							ocSaveTask = scope.async(Dispatchers.IO) {
+								val tempFile = File(tempFolder, Constants.TEMP_IMAGE)
+								tempFile.saveJPEG(
+									bitmap = it.first,
+									quality = 100,
+									rotation = it.second
+								)
+								tempFile
+							}
+							backStack.add(Screen.CropScan(it))
+						},
+						openListScan = { backStack.add(Screen.ListScanned) },
+						onBack = {
+							backStack.removeLastOrNull()
+							bitmapAndRotation = null
+							ocSaveTask?.cancel()
+							ocSaveTask = null
+						})
+				}
+				entry<Screen.CropScan> { (resultScanned) ->
+					CropScanned(
+						modifier = modifier.fillMaxSize(),
+						resultScanned = resultScanned,
+						onBack = { backStack.removeLastOrNull() },
+						setNewPoints = { newPoints ->
+							if (bitmapAndRotation == null) {
+								backStack.removeLastOrNull()
+								return@CropScanned
+							}
+							scope.launch(Dispatchers.IO) {
+								val date = Date().time
 
-                                val originalMat = Mat()
+								val originalMat = Mat()
 
-                                Utils.bitmapToMat(
-                                    bitmapAndRotation!!.first,
-                                    originalMat
-                                )
+								Utils.bitmapToMat(
+									bitmapAndRotation!!.first,
+									originalMat
+								)
 
-                                val unwrappedMat = unwrap(
-                                    originalMat = originalMat,
-                                    points = newPoints
-                                )
-                                originalMat.release()
+								val unwrappedMat = unwrap(
+									originalMat = originalMat,
+									points = newPoints
+								)
+								originalMat.release()
 
-                                val unwrappedBitmap = unwrappedMat.toBitmap()
-                                unwrappedMat.release()
+								val unwrappedBitmap = unwrappedMat.toBitmap()
+								unwrappedMat.release()
 
-                                val unwrappedFile =
-                                    File(unwrappedImageFolder, "$date.jpg")
-                                //Lưu ảnh đã được cắt và làm phẳng vào thư mục unwrappedImageFolder
-                                unwrappedFile.saveJPEG(
-                                    bitmap = unwrappedBitmap,
-                                    rotation = bitmapAndRotation!!.second
-                                )
-                                unwrappedBitmap.recycle()
+								val unwrappedFile =
+									File(unwrappedImageFolder, "$date.jpg")
+								//Lưu ảnh đã được cắt và làm phẳng vào thư mục unwrappedImageFolder
+								unwrappedFile.saveJPEG(
+									bitmap = unwrappedBitmap,
+									rotation = bitmapAndRotation!!.second
+								)
+								unwrappedBitmap.recycle()
 
-                                val originalFile =
-                                    File(originalImageFolder, "$date.jpg")
-                                //Lưu ảnh gốc vào thư mục originalImageFolder
-                                val tempFile = ocSaveTask!!.await()
-                                //Đổi tên file tạm thành file gốc
-                                tempFile.renameTo(originalFile)
+								val originalFile =
+									File(originalImageFolder, "$date.jpg")
+								//Lưu ảnh gốc vào thư mục originalImageFolder
+								val tempFile = ocSaveTask!!.await()
+								//Đổi tên file tạm thành file gốc
+								tempFile.renameTo(originalFile)
 
-                                bitmapAndRotation = null
-                                withContext(Dispatchers.Main) {
-                                    backStack.removeLastOrNull()
-                                }
-                            }
-                        }
-                    )
-                }
-                entry<Screen.ListPDF> {
-                    FileScreen()
-                }
-                entry<Screen.SplitPDF> {
-                    SplitPDFScreen(
-                        toPreview = { uri, splitPage ->
-                            backStack.add(Screen.SplitPreview(uri, splitPage))
-                        }
-                    )
-                }
-                entry<Screen.SplitPreview> { (uri, splitPages) ->
-                    SplitPreview(uri = uri, splitPage = splitPages)
-                }
-                entry<Screen.MergePDF> {
-                    MergePDFScreen()
-                }
-
-            }
-        )
-    }
+								bitmapAndRotation = null
+								withContext(Dispatchers.Main) {
+									backStack.removeLastOrNull()
+								}
+							}
+						}
+					)
+				}
+				entry<Screen.ListPDF> {
+					FileScreen()
+				}
+				entry<Screen.SplitPDF> {
+					SplitPDFScreen(
+						toPreview = { uri, splitPage ->
+							backStack.add(Screen.SplitPreview(uri, splitPage))
+						}
+					)
+				}
+				entry<Screen.SplitPreview> { (uri, splitPages) ->
+					SplitPreview(uri = uri, splitPage = splitPages)
+				}
+				entry<Screen.MergePDF> {
+					MergePDFScreen()
+				}
+				entry<Screen.ListScanned> {
+					ListScanned(
+						modifier = modifier.fillMaxSize(),
+						onBack = { backStack.removeLastOrNull() }
+					)
+				}
+			}
+		)
+	}
 }
 
 @Composable
 fun NavItem(
-    modifier: Modifier = Modifier,
-    icon: Int = R.drawable.ic_tool_outlined,
-    filledIcon: Int = R.drawable.ic_tool_outlined,
-    isSelected: Boolean = false,
-    onSelected: () -> Unit = {},
-    title: String = "Title"
+	modifier: Modifier = Modifier,
+	icon: Int = R.drawable.ic_tool_outlined,
+	filledIcon: Int = R.drawable.ic_tool_outlined,
+	isSelected: Boolean = false,
+	onSelected: () -> Unit = {},
+	title: String = "Title"
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .clickable { onSelected() },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            painter = painterResource(if (isSelected) filledIcon else icon),
-            contentDescription = "Nav Item",
-            tint = if (!isSelected) Color(0xFFC3C3C3) else Color.Unspecified
-        )
-        Spacer(Modifier.size(8.dp))
-        Text(
-            text = title,
-            color = if (!isSelected) Color(0xFFC3C3C3) else Color(0xFF4E52D9)
-        )
-    }
+	Column(
+		modifier = modifier
+			.fillMaxSize()
+			.clickable { onSelected() },
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.Center
+	) {
+		Icon(
+			painter = painterResource(if (isSelected) filledIcon else icon),
+			contentDescription = "Nav Item",
+			tint = if (!isSelected) Color(0xFFC3C3C3) else Color.Unspecified
+		)
+		Spacer(Modifier.size(8.dp))
+		Text(
+			text = title,
+			color = if (!isSelected) Color(0xFFC3C3C3) else Color(0xFF4E52D9)
+		)
+	}
 }
