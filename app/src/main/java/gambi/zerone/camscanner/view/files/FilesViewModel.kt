@@ -125,7 +125,7 @@ fun Long.formatFileSize(): String {
     return when {
         mb >= 1 -> String.format("%.2f MB", mb)
         kb >= 1 -> String.format("%.2f KB", kb)
-        gb>=1 -> String.format("%.2f GB", gb)
+        gb >= 1 -> String.format("%.2f GB", gb)
         else -> "$this B"
     }
 }
