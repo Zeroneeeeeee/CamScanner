@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -12,13 +13,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -28,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import gambi.zerone.camscanner.R
+import gambi.zerone.camscanner.view.files.FileScreen
 import java.io.File
 import kotlin.io.copyTo
 import kotlin.io.outputStream
@@ -51,7 +52,6 @@ fun SplitPDFScreen(
     viewModel: PdfViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     var pdfUri by remember { mutableStateOf<Uri?>(null) }
     val pdfBitmapConverter = remember { PdfBitmapConverter(context) }
@@ -65,94 +65,91 @@ fun SplitPDFScreen(
         it?.let { uri -> pdfBitmapConverter.openPdf(uri) }
     }
 
+    LaunchedEffect(pdfUri) {
+        viewModel.clearCache()
+    }
+
     if (pdfUri == null) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Button(onClick = { choosePdfLauncher.launch("application/pdf") }) {
-                Text("Choose PDF")
+        FileScreen(
+            onItemClick = {
+                pdfUri = it
+                it.let { uri -> pdfBitmapConverter.openPdf(uri) }
+                Log.d("CheckURI", "URI: $it")
             }
-        }
+        )
     } else {
         Column(
             modifier = modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val pages = pdfBitmapConverter.pageCount
-                val chunked = (0 until pages).chunked(2)
-                items(chunked.size) { rowIndex ->
-                    val rowItems = chunked[rowIndex]
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                items(
+                    count = pages,
+                    key = { it } // 🔑 giữ state ổn định
+                ) { pageIndex ->
+
+                    val bitmap = viewModel.bitmapCache[pageIndex]
+
+                    LaunchedEffect(pageIndex) {
+                        if (bitmap == null) {
+                            viewModel.loadBitmapIfNeeded(
+                                pageIndex = pageIndex,
+                                converter = pdfBitmapConverter
+                            )
+                        }
+                    }
+
+                    val isSelected = indexToMove.contains(pageIndex)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(0.7f)
+                            .clickable {
+                                if (isSelected) {
+                                    indexToMove.remove(pageIndex)
+                                } else {
+                                    indexToMove.add(pageIndex)
+                                }
+                            }
+                            .border(
+                                width = 2.dp,
+                                color = if (isSelected) Color.Blue else Color.Transparent
+                            )
                     ) {
-                        rowItems.forEach { pageIndex ->
+                        bitmap?.let {
+                            Image(
+                                bitmap = it.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
 
-                            val bitmap = viewModel.bitmapCache[pageIndex]
-
-                            LaunchedEffect(pageIndex) {
-                                if (bitmap == null) {
-                                    viewModel.loadBitmapIfNeeded(
-                                        pageIndex,
-                                        pdfBitmapConverter
-                                    )
-                                }
-                            }
-
-                            bitmap?.let {
-                                var isAdd by remember { mutableStateOf(false) }
-                                Box(
-                                    modifier = Modifier
-                                        .clickable(
-                                            onClick = {
-                                                isAdd = !isAdd
-                                                if (isAdd) {
-                                                    indexToMove.add(pageIndex)
-                                                } else {
-                                                    indexToMove.remove(pageIndex)
-                                                }
-                                            }
-                                        )
-                                        .weight(1f)
-                                        .border(2.dp, if (isAdd) Color.Blue else Color.Transparent),
-                                ) {
-                                    Image(
-                                        bitmap = it.asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .align(Alignment.Center)
-                                    )
-                                    if (isAdd) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_tick),
-                                            contentDescription = null,
-                                            tint = Color.Blue,
-                                            modifier = Modifier
-                                                .padding(8.dp)
-                                                .size(24.dp)
-                                                .align(Alignment.TopEnd)
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (rowItems.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                        if (isSelected) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_tick),
+                                contentDescription = null,
+                                tint = Color.Blue,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(24.dp)
+                                    .align(Alignment.TopEnd)
+                            )
                         }
                     }
                 }
-
             }
+
 
             Button(onClick = {
                 pdfUri?.let { uri -> toPreview(uri, indexToMove.toList()) }

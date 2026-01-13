@@ -32,7 +32,6 @@ import gambi.zerone.camscanner.view.splitpdf.PdfBitmapConverter
 import gambi.zerone.camscanner.view.splitpdf.PdfViewModel
 import gambi.zerone.camscanner.view.splitpdf.toFile
 
-
 @Composable
 fun MergePDFScreen(
     modifier: Modifier = Modifier,
@@ -44,15 +43,12 @@ fun MergePDFScreen(
     }
     var pdfUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
-
     val merger = PDFMergerUtility()
-
 
     LaunchedEffect(pdfUris) {
         pdfUris.forEach { pdfUri ->
             merger.addSource(pdfUri.toFile(context))
         }
-
     }
 
     val choosePdfLauncher = rememberLauncherForActivityResult(
@@ -75,7 +71,6 @@ fun MergePDFScreen(
             }
         }
     } else {
-
         Column(
             modifier = modifier
                 .fillMaxSize(),
@@ -101,8 +96,8 @@ fun MergePDFScreen(
                             LaunchedEffect(pageIndex) {
                                 if (bitmap == null) {
                                     viewModel.loadBitmapIfNeeded(
-                                        pageIndex,
-                                        pdfBitmapConverter
+                                        pageIndex = pageIndex,
+                                        converter = pdfBitmapConverter
                                     )
                                 }
                             }
@@ -123,11 +118,9 @@ fun MergePDFScreen(
                         }
                     }
                 }
-
             }
 
             Button(onClick = {
-
                 //bitmapsToPdf(context, renderedPages, "Merged_PDF.pdf")
             }) {
                 Text(text = "Merge PDF")
