@@ -50,6 +50,7 @@ import gambi.zerone.camscanner.view.files.FileScreen
 import gambi.zerone.camscanner.view.mergepdf.MergePDFScreen
 import gambi.zerone.camscanner.view.scanner.CameraScan
 import gambi.zerone.camscanner.view.scanner.CropScanned
+import gambi.zerone.camscanner.view.scanner.HandleCameraPermission
 import gambi.zerone.camscanner.view.scanner.listScanned.ListScanned
 import gambi.zerone.camscanner.view.splitpdf.SplitPDFScreen
 import gambi.zerone.camscanner.view.splitpdf.SplitPreview
@@ -153,21 +154,23 @@ fun Context.Navigation(
 		},
 		floatingActionButton = {
 			if (showBottomBar) {
-				FloatingActionButton(
-					onClick = { /*TODO*/ },
-					containerColor = Color.White,
-					shape = CircleShape,
-					modifier = Modifier
-						.size(64.dp)
-						.offset(y = 48.dp)
-						.background(Color(0xFFA4ABF4).copy(alpha = 0.15f), CircleShape)
-						.padding(8.dp)
-				) {
-					Icon(
-						painter = painterResource(R.drawable.ic_camera_filled),
-						contentDescription = "Camera",
-						tint = Color.Unspecified
-					)
+				HandleCameraPermission(onPermissionGranted = { backStack.add(Screen.SmartScan) }) { requestPermissionCamera ->
+					FloatingActionButton(
+						onClick = requestPermissionCamera,
+						containerColor = Color.White,
+						shape = CircleShape,
+						modifier = Modifier
+							.size(64.dp)
+							.offset(y = 48.dp)
+							.background(Color(0xFFA4ABF4).copy(alpha = 0.15f), CircleShape)
+							.padding(8.dp)
+					) {
+						Icon(
+							painter = painterResource(R.drawable.ic_camera_filled),
+							contentDescription = "Camera",
+							tint = Color.Unspecified
+						)
+					}
 				}
 			}
 		},
