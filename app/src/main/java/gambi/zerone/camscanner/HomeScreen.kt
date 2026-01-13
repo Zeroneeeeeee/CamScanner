@@ -181,13 +181,13 @@ fun FunctionItem(
 	functionName: String = "Function Name",
 	iconTint: Color = Color.Unspecified,
 	iconBackground: Color = Color(0xFF4E52D9).copy(alpha = 0.1f),
+	hideText: Boolean = false,
 	onClick: () -> Unit = {}
 ) {
 	Column(
 		modifier = modifier.clickable(onClick = onClick),
 		horizontalAlignment = Alignment.CenterHorizontally
 	) {
-		Spacer(modifier = Modifier.height(4.dp))
 		Icon(
 			painter = painterResource(icon),
 			contentDescription = "Function Icon",
@@ -197,14 +197,17 @@ fun FunctionItem(
 				.padding(10.dp)
 				.size(28.dp)
 		)
-		Spacer(modifier = Modifier.height(8.dp))
-		Text(
-			text = functionName,
-			fontSize = 12.sp,
-			color = Color(0xFF5D5D5D),
-			maxLines = 1,
-			overflow = TextOverflow.Ellipsis
-		)
+
+		if(!hideText){
+			Spacer(modifier = Modifier.height(8.dp))
+			Text(
+				text = functionName,
+				fontSize = 12.sp,
+				color = Color(0xFF5D5D5D),
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis
+			)
+		}
 	}
 }
 
